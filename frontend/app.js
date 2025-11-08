@@ -96,13 +96,6 @@ async function initializeApp(user) {
     exportActionsToCSV();
   });
 
-  document
-    .getElementById("manage-categories-btn")
-    .addEventListener("click", (e) => {
-      e.preventDefault();
-      openCategoriesModal();
-    });
-
   // --- Filter/Search Listeners ---
   const searchInput = document.getElementById("search-input");
   const clearSearchBtn = document.getElementById("clear-search-btn");
@@ -644,9 +637,6 @@ function setupModals() {
   // Bulk Move modal
   document.getElementById("save-bulk-move-btn").onclick = handleSaveBulkMove;
 
-  // Manage Categories modal
-  document.getElementById("add-category-btn").onclick = handleAddCategory;
-
   // Generic close buttons
   document.querySelectorAll(".modal .close-btn").forEach((btn) => {
     btn.onclick = () => {
@@ -847,118 +837,6 @@ async function handleBulkDelete() {
   selectedItems = [];
   renderItems();
   updateBulkActionUI();
-}
-
-// --- Category Management Functions ---
-async function openCategoriesModal() {
-  const list = document.getElementById("category-list");
-  list.innerHTML = "<li>Loading...</li>";
-
-  await getCategories();
-  list.innerHTML = "";
-
-  if (allCategoriesCache.length === 0) {
-    list.innerHTML = "<li>No categories found.</li>";
-  }
-
-  allCategoriesCache.forEach((category) => {
-    const li = document.createElement("li");
-    li.dataset.id = category.id;
-    li.innerHTML = `
-            <span>${category.name}</span>
-            <div>
-                <button class="rename-cat-btn">Rename</button>
-                <button class="delete-cat-btn">X</button>
-            </div>
-        `;
-    list.appendChild(li);
-
-    li.querySelector(".rename-cat-btn").addEventListener("click", () =>
-      handleRenameCategory(category.id, category.name)
-    );
-    li.querySelector(".delete-cat-btn").addEventListener("click", () =>
-      handleDeleteCategory(category.id, category.name)
-    );
-  });
-
-  document.getElementById("manage-categories-modal").style.display = "block";
-}
-
-async function handleAddCategory() {
-  const nameInput = document.getElementById("new-category-name");
-  const name = nameInput.value.trim();
-
-  if (!name) {
-    alert("Please enter a category name.");
-    return;
-  }
-
-  const { data, error } = await supabaseClient
-    .from("categories")
-    .insert({ name: name, user_id: CURRENT_USER_ID })
-    .select();
-
-  if (error) {
-    if (error.code === "23505") {
-      alert("A category with this name already exists.");
-    } else {
-      alert("Error adding category: " + error.message);
-    }
-    return;
-  }
-  nameInput.value = "";
-  await getCategories();
-  await openCategoriesModal();
-  populateCategoryFilter();
-  populateCategoryDropdown();
-}
-
-async function handleRenameCategory(categoryId, oldName) {
-  const newName = prompt(`Rename category "${oldName}" to:`, oldName);
-
-  if (!newName || newName.trim() === "" || newName === oldName) {
-    return;
-  }
-
-  const { error } = await supabaseClient
-    .from("categories")
-    .update({ name: newName.trim() })
-    .eq("id", categoryId);
-
-  if (error) {
-    alert("Error renaming category: " + error.message);
-    return;
-  }
-
-  await getCategories();
-  await openCategoriesModal();
-  populateCategoryFilter();
-  populateCategoryDropdown();
-}
-
-async function handleDeleteCategory(categoryId, name) {
-  if (
-    !confirm(
-      `Are you sure you want to delete the category "${name}"?\n\nThis will NOT delete your items, but they will become "Uncategorized".`
-    )
-  ) {
-    return;
-  }
-  const { error } = await supabaseClient
-    .from("categories")
-    .delete()
-    .eq("id", categoryId);
-
-  if (error) {
-    alert("Error deleting category: " + error.message);
-    return;
-  }
-
-  await getCategories();
-  await openCategoriesModal();
-  populateCategoryFilter();
-  populateCategoryDropdown();
-  renderItems();
 }
 
 // --- Export Function ---

@@ -26,9 +26,10 @@
           <span id="user-email-display">...</span> ▼
         </button>
         <div class="action-menu" id="user-menu">
-          <a href="#" id="manage-categories-btn">Manage Categories</a>
-          <a href="#" id="export-csv-btn">Export Log (CSV)</a>
-          <a href="#" id="logout-btn" class="delete">Log Out</a>
+            <a href="settings.html" id="settings-link">⚙️ Settings</a>
+            <a href="#" id="export-csv-btn">Export Log (CSV)</a>
+            <a href="#" id="logout-btn" class="delete">Log Out</a>
+          </div>
         </div>
       </div>
     </header>
@@ -149,24 +150,6 @@
         <p>Move <strong id="bulk-move-count">...</strong> items to:</p>
         <select id="bulk-move-place-select"></select>
         <button id="save-bulk-move-btn">Move Items</button>
-      </div>
-    </div>
-
-    <div id="manage-categories-modal" class="modal">
-      <div class="modal-content">
-        <span class="close-btn">&times;</span>
-        <h3>Manage Categories</h3>
-        <div id="add-category-form">
-          <input
-            type="text"
-            id="new-category-name"
-            placeholder="New category name"
-          />
-          <button id="add-category-btn">Add</button>
-        </div>
-        <hr class="modal-hr" />
-        <h4>Your Categories</h4>
-        <ul id="category-list"></ul>
       </div>
     </div>
 

@@ -428,6 +428,71 @@ Filter/Search Bar
 }
 
 /*
+===================
+Settings Page 
+===================
+*/
+#settings-nav li {
+  padding: 12px 10px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+#settings-nav li:hover {
+  background: #f4f4f4;
+}
+#settings-nav li.active {
+  background: #eef;
+  font-weight: bold;
+}
+/* The list inside the categories page */
+#category-list {
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+#category-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 5px;
+  border-bottom: 1px solid #f4f4f4;
+}
+#category-list li span {
+  flex-grow: 1;
+}
+#category-list li button {
+  font-size: 0.8em;
+  padding: 3px 8px;
+  margin-left: 5px;
+}
+#category-list .delete-cat-btn {
+  background-color: #6c757d;
+}
+#category-list .delete-cat-btn:hover {
+  background-color: #dc3545;
+}
+#category-list .rename-cat-btn {
+  background-color: #6c757d;
+}
+#category-list .rename-cat-btn:hover {
+  background-color: #007bff;
+}
+#add-category-form {
+  display: flex;
+  margin-bottom: 15px;
+}
+#add-category-form input {
+  flex-grow: 1;
+  margin-right: 10px;
+}
+.modal-hr {
+  /* We can use this on the settings page too */
+  margin: 20px 0;
+  border: none;
+  border-top: 1px solid #eee;
+}
+
+/*
 ========================================
 Mobile Responsiveness
 ========================================
