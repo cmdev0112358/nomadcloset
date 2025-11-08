@@ -360,6 +360,69 @@ Smart Header & Bulk Actions
 
 /*
 ========================================
+Filter/Search Bar 
+========================================
+*/
+
+#filter-bar {
+  margin-bottom: 15px;
+  /* Use flex to align search and category */
+  display: flex;
+  align-items: center;
+  gap: 15px; /* Adds space between them */
+}
+
+/* Wrapper for search*/
+#search-input-wrapper {
+  position: relative;
+  /* Make it grow to fill space */
+  flex-grow: 1;
+}
+
+#search-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1em;
+  /* Add padding on the right so text doesn't go under the "X" */
+  padding-right: 40px;
+}
+
+/* Style for the "X" button */
+#clear-search-btn {
+  position: absolute; /* Positions it inside the wrapper */
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 40px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 1.5em; /* Makes the "X" bigger */
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+#clear-search-btn:hover {
+  color: #333;
+}
+
+/* Style for the category dropdown */
+#category-filter-wrapper {
+  /* It will not grow, it will just be as wide as it needs */
+  flex-grow: 0;
+}
+
+#category-filter-select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: white;
+}
+
+/*
+========================================
 Mobile Responsiveness
 ========================================
 */
@@ -394,5 +457,10 @@ Mobile Responsiveness
   .modal-content {
     /* Make modals use more of the screen */
     width: 90%;
+  }
+
+  #filter-bar {
+    flex-direction: column; /* Stack filters vertically */
+    align-items: stretch; /* Make them both full-width */
   }
 }

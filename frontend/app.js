@@ -5,24 +5,17 @@ let CURRENT_USER_ID = null;
 let CURRENT_SESSION_ID = "";
 let ACTIVE_PLACE_ID = "all"; // 'all' by default
 let allPlacesCache = []; // Cache places for rendering item lists
+let allCategoriesCache = []; // NEW: Cache for database categories
 
 // --- Supabase Client ---
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Predefined list of categories
-const ITEM_CATEGORIES = [
-  "Uncategorized",
-  "Tech",
-  "Clothing",
-  "Toiletries",
-  "Documents",
-  "Books",
-  "Hobby",
-  "Other",
-];
-
 //State for Bulk Edit
 let selectedItems = [];
+//State for Search
+let currentSearchQuery = "";
+// State for Category Filter
+let currentCategoryFilter = "all";
 
 // --- UI Elements ---
 const appContainer = document.getElementById("app-container");
@@ -78,11 +71,43 @@ async function initializeApp(user) {
   // Check for default places (same as before)
   await initDefaultPlaces();
 
+  // Fetch all categories into the cache
+  await getCategories();
+
   // Setup main app UI
   setupModals();
   document
     .getElementById("export-csv-btn")
     .addEventListener("click", exportActionsToCSV);
+
+  // Listener for the search bar
+  const searchInput = document.getElementById("search-input");
+  const clearSearchBtn = document.getElementById("clear-search-btn");
+
+  searchInput.addEventListener("input", (e) => {
+    currentSearchQuery = e.target.value;
+
+    // Show or hide the "X" button
+    if (currentSearchQuery.length > 0) {
+      clearSearchBtn.classList.remove("hidden");
+    } else {
+      clearSearchBtn.classList.add("hidden");
+    }
+
+    renderItems(); // Re-render the list on every keystroke
+  });
+
+  // Listener for the "X" button
+  clearSearchBtn.addEventListener("click", (e) => {
+    // 1. Clear the JS state
+    currentSearchQuery = "";
+    // 2. Clear the HTML input box
+    searchInput.value = "";
+    // 3. Hide the "X" button
+    clearSearchBtn.classList.add("hidden");
+    // 4. Re-render the list
+    renderItems();
+  });
 
   // Listeners for the Smart Bulk Action Bar
   document
@@ -111,6 +136,15 @@ async function initializeApp(user) {
     handleBulkDelete();
     closeAllActionMenus();
   });
+
+  // Populate and listen to the category filter
+  populateCategoryFilter(); // Fill the dropdown
+  document
+    .getElementById("category-filter-select")
+    .addEventListener("change", (e) => {
+      currentCategoryFilter = e.target.value;
+      renderItems(); // Re-render the list
+    });
 
   // Initial Render
   await renderPlaces();
@@ -235,31 +269,51 @@ function setupAuthListeners() {
 
 // Checks if a new user needs default places created.
 async function initDefaultPlaces() {
-  const { data, error } = await supabaseClient
+  // 1. Check for places (no change)
+  const { data: placesData, error: placesError } = await supabaseClient
     .from("places")
     .select("id")
     .eq("user_id", CURRENT_USER_ID)
     .limit(1);
 
-  if (error) console.error("Error checking for places:", error);
+  if (placesError) console.error("Error checking for places:", placesError);
 
-  if (data && data.length === 0) {
+  if (placesData && placesData.length === 0) {
     console.log("No places found, creating defaults...");
     const defaultPlaces = [
       { name: "Casa Uni", user_id: CURRENT_USER_ID },
       { name: "Casa Genitori", user_id: CURRENT_USER_ID },
       { name: "Valigia", user_id: CURRENT_USER_ID },
     ];
+    await supabaseClient.from("places").insert(defaultPlaces);
+    // Log action (we can simplify this)
+    logAction("create_place", { metadata: { created_defaults: true } });
+  }
 
-    const { error: insertError } = await supabaseClient
-      .from("places")
-      .insert(defaultPlaces);
-    if (insertError)
-      console.error("Error creating default places:", insertError);
+  // 2. Check for categories
+  const { data: categoriesData, error: categoriesError } = await supabaseClient
+    .from("categories")
+    .select("id")
+    .eq("user_id", CURRENT_USER_ID)
+    .limit(1);
 
-    defaultPlaces.forEach((place) => {
-      logAction("create_place", { place_name: place.name });
-    });
+  if (categoriesError)
+    console.error("Error checking for categories:", categoriesError);
+
+  if (categoriesData && categoriesData.length === 0) {
+    console.log("No categories found, creating defaults...");
+    // This replaces our old constant list
+    const defaultCategories = [
+      { name: "Uncategorized", user_id: CURRENT_USER_ID },
+      { name: "Tech", user_id: CURRENT_USER_ID },
+      { name: "Clothing", user_id: CURRENT_USER_ID },
+      { name: "Toiletries", user_id: CURRENT_USER_ID },
+      { name: "Documents", user_id: CURRENT_USER_ID },
+      { name: "Books", user_id: CURRENT_USER_ID },
+      { name: "Hobby", user_id: CURRENT_USER_ID },
+      { name: "Other", user_id: CURRENT_USER_ID },
+    ];
+    await supabaseClient.from("categories").insert(defaultCategories);
   }
 }
 
@@ -275,9 +329,24 @@ async function getPlaces() {
 async function getItems() {
   const { data, error } = await supabaseClient
     .from("items")
-    .select("*, places(name)") // Join to get place name
+    .select("*, places(name), categories(name)") // Join places AND categories
     .eq("user_id", CURRENT_USER_ID);
   if (error) console.error("Error fetching items:", error);
+  return data || [];
+}
+
+async function getCategories() {
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .select("*")
+    .eq("user_id", CURRENT_USER_ID)
+    .order("name"); // Order them alphabetically
+
+  if (error) {
+    console.error("Error fetching categories:", error);
+    return [];
+  }
+  allCategoriesCache = data; // Store in cache
   return data || [];
 }
 
@@ -292,9 +361,28 @@ function populateCategoryDropdown() {
   const select = document.getElementById("new-item-category");
   select.innerHTML = ""; // Clear old options
 
-  ITEM_CATEGORIES.forEach((category) => {
-    select.innerHTML += `<option value="${category}">${category}</option>`;
+  // Use the cache we fetched from the database
+  allCategoriesCache.forEach((category) => {
+    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
   });
+}
+
+/**
+ * Populates the category FILTER dropdown in the filter bar
+ */
+function populateCategoryFilter() {
+  const select = document.getElementById("category-filter-select");
+  select.innerHTML = ""; // Clear old options
+
+  select.innerHTML += `<option value="all">All Categories</option>`;
+
+  // Use the cache we fetched from the database
+  allCategoriesCache.forEach((category) => {
+    // We use the ID for the value
+    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+  });
+
+  select.value = currentCategoryFilter;
 }
 
 async function logAction(action_type, data = {}) {
@@ -354,10 +442,27 @@ async function renderItems() {
   const ul = document.getElementById("items-list");
   ul.innerHTML = "";
 
-  const filteredItems =
+  // 1. Filter by Active Place
+  const placeFilteredItems =
     ACTIVE_PLACE_ID === "all"
       ? items
       : items.filter((item) => item.place_id === ACTIVE_PLACE_ID);
+
+  // 2. Filter by Search Query
+  const searchFilteredItems =
+    currentSearchQuery === ""
+      ? placeFilteredItems
+      : placeFilteredItems.filter((item) =>
+          item.name.toLowerCase().includes(currentSearchQuery.toLowerCase())
+        );
+
+  // 3. Filter by Category
+  const filteredItems =
+    currentCategoryFilter === "all"
+      ? searchFilteredItems // No filter, show all
+      : searchFilteredItems.filter(
+          (item) => item.category_id === currentCategoryFilter
+        );
 
   // Update the header *before* rendering items
   updateBulkActionUI(filteredItems.length);
@@ -382,7 +487,9 @@ async function renderItems() {
                     item.id
                   }" ${isSelected ? "checked" : ""}>
                   <div> <strong>${item.name}</strong> (${placeName})
-                    <span class="item-category">${item.category || ""}</span>
+                    <span class="item-category">${
+                      item.categories ? item.categories.name : ""
+                    }</span>
                   </div>
               </div>
               
@@ -787,7 +894,7 @@ function setupModals() {
   // --- Add Item Modal ---
   const addItemModal = document.getElementById("add-item-modal");
   document.getElementById("add-item-btn").onclick = () => {
-    // NEW: Populate the category dropdown *before* showing the modal
+    // Populate the category dropdown *before* showing the modal
     populateCategoryDropdown();
 
     addItemModal.style.display = "block";
@@ -796,16 +903,17 @@ function setupModals() {
 
   document.getElementById("save-item-btn").onclick = async () => {
     const name = document.getElementById("new-item-name").value;
-    const category = document.getElementById("new-item-category").value;
+    const category_id = document.getElementById("new-item-category").value;
     const place_id = document.getElementById("new-item-place").value;
     if (!name || !place_id) return alert("Name and place are required.");
 
     const newItem = {
       name: name,
-      category: category,
+      category_id: category_id,
       place_id: place_id,
       user_id: CURRENT_USER_ID,
     };
+
     const { data, error } = await supabaseClient
       .from("items")
       .insert(newItem)
