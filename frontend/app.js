@@ -9,6 +9,7 @@ let allCategoriesCache = [];
 let selectedItems = [];
 let currentSearchQuery = "";
 let currentCategoryFilter = "all";
+let currentSortOrder = "name-asc";
 
 // --- Supabase Client ---
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -68,9 +69,6 @@ async function initializeApp(user) {
   // Show user email
   userEmailDisplay.innerText = user.email;
 
-  // Check for default places AND categories
-  await initDefaultPlaces();
-
   // Fetch all categories into the cache
   await getCategories();
 
@@ -79,6 +77,35 @@ async function initializeApp(user) {
 
   // --- Main App Listeners ---
   document.getElementById("logout-btn").addEventListener("click", handleLogout);
+
+  // Listeners for Mobile Burger Menu
+  const mobileMenu = document.getElementById("mobile-menu");
+
+  // Open Button
+  document.getElementById("burger-menu-btn").addEventListener("click", () => {
+    mobileMenu.classList.remove("mobile-menu-hidden");
+  });
+
+  // Close Button
+  document
+    .getElementById("mobile-menu-close-btn")
+    .addEventListener("click", () => {
+      mobileMenu.classList.add("mobile-menu-hidden");
+    });
+
+  document
+    .getElementById("mobile-export-csv-btn")
+    .addEventListener("click", (e) => {
+      e.preventDefault();
+      mobileMenu.classList.add("mobile-menu-hidden");
+      exportActionsToCSV();
+    });
+  document
+    .getElementById("mobile-logout-btn")
+    .addEventListener("click", (e) => {
+      e.preventDefault();
+      handleLogout();
+    });
 
   // Listener for the User Menu
   document.getElementById("user-menu-btn").addEventListener("click", (e) => {
@@ -120,6 +147,12 @@ async function initializeApp(user) {
       renderItems();
     });
 
+  // Listener for the sort dropdown
+  document.getElementById("sort-select").addEventListener("change", (e) => {
+    currentSortOrder = e.target.value;
+    renderItems(); // Re-render the list with new sorting
+  });
+
   // --- Bulk Action Listeners ---
   document
     .getElementById("select-all-checkbox")
@@ -159,14 +192,6 @@ async function initializeApp(user) {
   await renderItems();
 }
 
-//
-// ===================================================================
-// ALL OTHER FUNCTIONS (getCategories, initDefaultPlaces,
-// renderItems, handleItemSelection, etc.) remain exactly the same.
-// We are only changing the auth and initialization logic.
-// ===================================================================
-//
-
 // --- Database & App Functions ---
 
 async function getCategories() {
@@ -205,7 +230,7 @@ async function initDefaultPlaces() {
     logAction("create_place", { metadata: { created_defaults: true } });
   }
 
-  // 2. NEW: Check for categories
+  // 2. Check for categories
   const { data: categoriesData, error: categoriesError } = await supabaseClient
     .from("categories")
     .select("id")
@@ -241,11 +266,23 @@ async function getPlaces() {
 }
 
 async function getItems() {
+  // 1. Deconstruct the sort order
+  // 'name-asc' becomes column 'name', ascending 'true'
+  const [column, order] = currentSortOrder.split("-");
+  const ascending = order === "asc";
+
+  // 2. Build the query
   const { data, error } = await supabaseClient
     .from("items")
-    .select("*, places(name), categories(name)") // Join places AND categories
-    .eq("user_id", CURRENT_USER_ID);
-  if (error) console.error("Error fetching items:", error);
+    .select("*, places(name), categories(name)")
+    .eq("user_id", CURRENT_USER_ID)
+    // 3. Add the .order() clause
+    .order(column, { ascending: ascending });
+
+  if (error) {
+    console.error("Error fetching items:", error);
+    return [];
+  }
   return data || [];
 }
 
@@ -288,6 +325,10 @@ async function renderPlaces() {
   ul.innerHTML = `<li data-id="all" class="${
     ACTIVE_PLACE_ID === "all" ? "active" : ""
   }">All Items</li>`;
+  // NEW: Add a "virtual" place for unassigned items
+  ul.innerHTML += `<li data-id="null" class="${
+    ACTIVE_PLACE_ID === "null" ? "active" : ""
+  }">Unassigned</li>`;
 
   places.forEach((place) => {
     ul.innerHTML += `<li data-id="${place.id}" class="${
@@ -317,11 +358,18 @@ async function renderItems() {
   ul.innerHTML = "";
 
   // 1. Filter by Active Place
-  const placeFilteredItems =
-    ACTIVE_PLACE_ID === "all"
-      ? items
-      : items.filter((item) => item.place_id === ACTIVE_PLACE_ID);
-
+  let placeFilteredItems;
+  if (ACTIVE_PLACE_ID === "all") {
+    placeFilteredItems = items;
+  } else if (ACTIVE_PLACE_ID === "null") {
+    // Show items where place_id is null
+    placeFilteredItems = items.filter((item) => item.place_id === null);
+  } else {
+    // Show items for a specific place
+    placeFilteredItems = items.filter(
+      (item) => item.place_id === ACTIVE_PLACE_ID
+    );
+  }
   // 2. Filter by Search Query
   const searchFilteredItems =
     currentSearchQuery === ""
@@ -373,7 +421,7 @@ async function renderItems() {
               <div class="action-menu-wrapper">
                   <button class="action-btn" data-item-id="${
                     item.id
-                  }">...</button>
+                  }">⋮</button>
                   <div class="action-menu" id="menu-${item.id}">
                       <a href="#" class="menu-move" data-id="${
                         item.id
@@ -534,11 +582,22 @@ function setupModals() {
   const addItemModal = document.getElementById("add-item-modal");
   document.getElementById("add-item-btn").onclick = () => {
     populateCategoryDropdown();
-    // Auto-select the first place in the list
-    document.getElementById("new-item-place").selectedIndex = 0;
+
+    // THIS IS THE NEW LOGIC
+    const placeDropdown = document.getElementById("new-item-place");
+
+    if (ACTIVE_PLACE_ID === "all" || ACTIVE_PLACE_ID === "null") {
+      // If we're in "All Items" or "Unassigned", just select the first real place
+      placeDropdown.selectedIndex = 0;
+    } else {
+      // If we are in a specific place, find it and select it!
+      placeDropdown.value = ACTIVE_PLACE_ID;
+    }
+
     addItemModal.style.display = "block";
     document.getElementById("new-item-name").focus();
   };
+
   document.getElementById("save-item-btn").onclick = async () => {
     const name = document.getElementById("new-item-name").value;
     const quantity =
@@ -733,17 +792,24 @@ function updateBulkActionUI(totalItems = 0) {
   const titleHeader = document.getElementById("items-header-title");
   const countSpan = document.getElementById("bulk-selected-count");
   const selectAllCheckbox = document.getElementById("select-all-checkbox");
+  const addItemBtn = document.getElementById("add-item-btn");
 
   if (selectedItems.length > 0) {
+    // ---- Show the Bulk UI ----
     titleHeader.classList.add("hidden");
     countSpan.classList.remove("hidden");
     bulkMenu.classList.remove("hidden");
+    addItemBtn.classList.add("hidden"); // Hide the "+" button
+
     countSpan.innerText = `${selectedItems.length} selected`;
     selectAllCheckbox.checked = selectedItems.length === totalItems;
   } else {
+    // ---- Show the Normal Header ----
     titleHeader.classList.remove("hidden");
     countSpan.classList.add("hidden");
     bulkMenu.classList.add("hidden");
+    addItemBtn.classList.remove("hidden"); // Show the "+" button
+
     selectAllCheckbox.checked = false;
   }
 }

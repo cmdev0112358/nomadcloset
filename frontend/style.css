@@ -33,30 +33,52 @@ body {
 header {
   background: #333;
   color: #fff;
-  padding: 20px;
-  text-align: center;
-}
-header .controls {
-  margin: 10px 0;
+  padding: 15px 30px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-header .session-info {
-  font-size: 0.9em;
-  color: #ccc;
-  margin-bottom: 10px;
-}
-#items-header {
-  display: flex;
-  justify-content: space-between; /* Puts "Items" on left, button on right */
+  justify-content: space-between;
   align-items: center;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.5em;
+  flex: 1; /* Take up 1/3 of the space */
+}
+
+header h1 a {
+  color: white;
+  text-decoration: none;
+}
+header h1 a:hover {
+  color: #eee;
+}
+
+#user-menu {
+  top: 45px;
+  min-width: 200px;
+  overflow: hidden; /* This clips the children */
+}
+
+#user-menu-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: flex-end; /* Push to the far right */
+}
+
+h2 {
   margin-bottom: 15px;
   border-bottom: 2px solid #eee;
-}
-h2 {
   padding-bottom: 5px;
 }
+
+.sidebar-header h2,
+#items-header-left h2 {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
 ul {
   list-style-type: none;
 }
@@ -99,6 +121,38 @@ ul {
   text-align: center;
   margin-top: 15px;
   color: red;
+}
+
+/*
+====================
+Auth Message Styles 
+====================
+*/
+
+#auth-message {
+  text-align: center;
+  margin-top: 15px;
+  font-weight: bold;
+  font-size: 0.9em;
+  padding: 10px;
+  border-radius: 5px;
+
+  /* Default to error style */
+  color: #721c24;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+#auth-message.success {
+  /* Success style (green) */
+  color: #155724;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+/* Hide it if it's empty */
+#auth-message:empty {
+  display: none;
 }
 
 /* Lists */
@@ -152,14 +206,13 @@ button:hover {
   background: #0056b3;
 }
 #export-csv-btn {
-  background: #28a745;
+  background: white;
 }
 #export-csv-btn:hover {
-  background: #218838;
+  background: #eee;
 }
 #logout-btn {
-  background: #dc3545;
-  margin-left: 10px;
+  background: white;
 }
 #logout-btn:hover {
   background: #c82333;
@@ -231,6 +284,51 @@ button:hover {
 }
 
 /*
+============
+Add Buttons 
+============
+*/
+
+.add-btn {
+  background: #007bff;
+  color: white; /* This will color the SVG icon */
+  border: none;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  margin: 0 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+}
+.add-btn:hover {
+  background: #0056b3;
+}
+
+/* Style the new sidebar header */
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #eee;
+  margin-bottom: 15px;
+}
+.sidebar-header h2 {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+/* Make sure the "Add Item" button is visible */
+#items-header-right {
+  display: flex;
+  align-items: center;
+}
+
+/*
 ========================================
 Item Action Menu
 ========================================
@@ -241,9 +339,30 @@ Item Action Menu
   background: #6c757d;
   font-weight: bold;
   padding: 3px 10px;
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
+
 .action-btn:hover {
-  background: #5a6268;
+  background-color: #5a6268;
+}
+
+.action-btn:focus,
+.action-btn:focus-visible,
+.action-btn:active {
+  background-color: #6c757d;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+#items-list .action-btn,
+#bulk-action-btn {
+  background: none;
+  color: gray;
+  padding: 3px 12px; /* Taller padding for the vertical icon */
+  font-size: 1.2em; /* Make the icon a bit bigger */
 }
 
 /* Wrapper for the dropdown menu */
@@ -265,6 +384,7 @@ Item Action Menu
   border-radius: 5px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   z-index: 100; /* Make sure it's on top */
+  overflow: hidden;
 }
 
 /* Links inside the menu */
@@ -283,10 +403,11 @@ Item Action Menu
 
 /* Special color for the delete link */
 .action-menu a.delete {
-  color: #dc3545;
+  color: red;
 }
 .action-menu a.delete:hover {
-  background-color: #fbebee;
+  background-color: #dc3545;
+  color: white;
 }
 
 /* This class will be toggled by JavaScript to show the menu */
@@ -427,6 +548,13 @@ Filter/Search Bar
   background-color: white;
 }
 
+#sort-select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: white;
+}
+
 /*
 ===================
 Settings Page 
@@ -493,6 +621,192 @@ Settings Page
 }
 
 /*
+=======================
+Settings Page - Places
+=======================
+*/
+#place-list {
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+#place-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 5px;
+  border-bottom: 1px solid #f4f4f4;
+}
+#place-list li span {
+  flex-grow: 1;
+}
+#place-list li button {
+  font-size: 0.8em;
+  padding: 3px 8px;
+  margin-left: 5px;
+}
+#place-list .delete-place-btn {
+  background-color: #6c757d;
+}
+#place-list .delete-place-btn:hover {
+  background-color: #dc3545;
+}
+#place-list .rename-place-btn {
+  background-color: #6c757d;
+}
+#place-list .rename-place-btn:hover {
+  background-color: #007bff;
+}
+#add-place-form {
+  display: flex;
+  margin-bottom: 15px;
+}
+#add-place-form input {
+  flex-grow: 1;
+  margin-right: 10px;
+}
+
+/*
+========================
+Settings Page - Profile 
+========================
+*/
+
+/* A generic form for settings pages */
+.settings-form {
+  padding: 20px;
+  background: #fdfdfd;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  max-width: 500px;
+}
+.settings-form h4 {
+  margin-top: 0;
+}
+.settings-form label {
+  font-weight: bold;
+  display: block;
+  margin-top: 15px;
+}
+.settings-form input[type="password"] {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+  margin-bottom: 15px;
+}
+/* For success/error messages */
+.form-message {
+  font-size: 0.9em;
+  margin-top: 10px;
+}
+.form-message.success {
+  color: green;
+}
+.form-message.error {
+  color: red;
+}
+
+/* The Danger Zone section */
+.danger-zone {
+  border: 2px solid #dc3545;
+  border-radius: 18px;
+  padding: 20px;
+  background: #fff8f8;
+  max-width: 500px;
+}
+.danger-zone h4 {
+  color: #dc3545;
+  margin-top: 0;
+}
+.danger-zone .delete-btn {
+  background-color: #dc3545;
+  margin-right: 10px;
+  border-radius: 5px;
+  padding: 2px 8px;
+}
+.danger-zone .delete-btn:hover {
+  background-color: #c82333;
+}
+
+.danger-zone a.delete-btn {
+  text-decoration: none;
+  display: inline-block;
+  color: white;
+}
+
+/*
+========================================
+Burger Menu 
+========================================
+*/
+
+/* The Burger Button (Hidden on Desktop) */
+#burger-menu-btn {
+  display: none;
+  font-size: 2em;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+/* The Fullscreen Menu (Hidden by default) */
+#mobile-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 200;
+  transition: transform 0.3s ease-in-out;
+  overflow-y: auto;
+}
+#mobile-menu.mobile-menu-hidden {
+  transform: translateX(-100%);
+}
+
+/* The "X" close button */
+#mobile-menu-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 3em;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+}
+#mobile-menu-close-btn:hover {
+  color: white;
+}
+
+/* Links inside the menu */
+#mobile-menu ul {
+  list-style: none;
+  margin-top: 80px;
+  padding: 20px;
+}
+#mobile-menu li a {
+  display: block;
+  padding: 15px 20px;
+  font-size: 1.5em;
+  color: white;
+  text-decoration: none;
+  border-bottom: 1px solid #444;
+}
+#mobile-menu li a.delete {
+  color: #ff8a8a;
+}
+.mobile-menu-section {
+  color: #888;
+  font-size: 1em;
+  text-transform: uppercase;
+  margin-top: 20px;
+  padding-left: 20px;
+}
+
+/*
 ========================================
 Mobile Responsiveness
 ========================================
@@ -533,5 +847,27 @@ Mobile Responsiveness
   #filter-bar {
     flex-direction: column; /* Stack filters vertically */
     align-items: stretch; /* Make them both full-width */
+  }
+
+  /* Hide desktop controls on mobile */
+  header .controls,
+  #user-menu-wrapper {
+    display: none;
+    flex: none;
+  }
+
+  /* Show burger button on mobile */
+  #burger-menu-btn {
+    display: block;
+  }
+
+  /* Tweak header for mobile */
+  header {
+    padding: 10px 15px;
+  }
+  header h1 {
+    font-size: 1.2em;
+    flex: none;
+    text-align: left; /* Keep title aligned left */
   }
 }

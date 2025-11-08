@@ -19,18 +19,23 @@ async function handleSignUp(e) {
 
   if (error) {
     authMessage.innerText = "Error signing up: " + error.message;
+    authMessage.classList.remove("success");
     return;
   }
 
-  // Check your Supabase settings.
-  // If "Confirm email" is ON, show this message.
-  if (!data.user) {
-    authMessage.innerText =
-      "Sign up successful! Please check your email to confirm.";
-  } else {
-    // If "Confirm email" is OFF, the user is logged in. Redirect them.
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
+    // This is a "recover" case, also an error
+    authMessage.innerText = "Error: This email already exists.";
+    authMessage.classList.remove("success");
+  } else if (data.session) {
+    // "Confirm Email" is OFF. User is logged in.
     authMessage.innerText = "Sign up successful! Logging you in...";
+    authMessage.classList.add("success");
     window.location.href = "index.html"; // Redirect to the app
+  } else {
+    // "Confirm Email" is ON. User is NOT logged in.
+    // Redirect to login page with a message!
+    window.location.href = "login.html?message=check-email";
   }
 }
 
@@ -51,6 +56,7 @@ async function handleLogin(e) {
 
   if (error) {
     authMessage.innerText = "Error logging in: " + error.message;
+    authMessage.classList.remove("success"); // Make sure it's red
     return;
   }
 
@@ -89,16 +95,27 @@ function setupAuthListeners() {
 
 // --- App Initialization ---
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Set up listeners for the Login/Signup forms
+  // 1. Set up listeners
   setupAuthListeners();
 
-  // 2. Check if user is ALREADY logged in
+  // 2. NEW: Check for URL messages
+  const urlParams = new URLSearchParams(window.location.search);
+  const message = urlParams.get("message");
+  const authMessage = document.getElementById("auth-message");
+
+  if (message === "check-email") {
+    authMessage.innerText =
+      "Sign up successful! Please check your email to confirm your account.";
+    authMessage.classList.add("success"); // Make it green
+  }
+
+  // 3. Check if user is ALREADY logged in
   supabaseClient.auth.getSession().then(({ data: { session } }) => {
     if (session) {
-      // If user is logged in, send them straight to the app
+      // If user is already logged in, send them straight to the app
       window.location.href = "index.html";
     } else {
-      // ADD THIS LINE to un-hide the login form
+      // Not logged in, make the page visible
       document.body.style.visibility = "visible";
     }
   });

@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Settings - NomadCloset Lite</title>
+    <title>Settings - NomadCloset</title>
+    <link rel="icon" type="image/png" href="media/favicon.png" />
     <style>
       body {
         visibility: hidden;
@@ -14,14 +15,17 @@
   </head>
   <body>
     <header>
-      <h1>NomadCloset Lite</h1>
+      <h1><a href="index.html">NomadCloset</a></h1>
+
+      <button id="burger-menu-btn">☰</button>
+      <div class="controls"></div>
 
       <div class="action-menu-wrapper" id="user-menu-wrapper">
         <button class="action-btn" id="user-menu-btn">
           <span id="user-email-display">...</span> ▼
         </button>
         <div class="action-menu" id="user-menu">
-          <a href="index.html">⬅️ Back to App</a>
+          <a href="index.html">Back to App</a>
           <a href="#" id="logout-btn" class="delete">Log Out</a>
         </div>
       </div>
@@ -39,13 +43,51 @@
 
       <section class="main-content" id="settings-content">
         <div id="profile-page" class="settings-page">
-          <h3>Profile</h3>
-          <p>Manage your account settings.</p>
+          <h3>Profile: <span id="profile-email-display">...</span></h3>
+          <form id="change-password-form" class="settings-form">
+            <h4>Change Password</h4>
+            <p>Enter a new password for your account.</p>
+            <label for="new-password">New Password</label>
+            <input
+              type="password"
+              id="new-password"
+              placeholder="Enter new password"
+              required
+            />
+            <button type="submit">Save New Password</button>
+            <p id="password-message" class="form-message"></p>
+          </form>
+
+          <hr class="modal-hr" />
+
+          <div class="danger-zone">
+            <h4>Danger Zone</h4>
+            <p>These actions are permanent and cannot be undone.</p>
+            <button id="logout-all-btn" class="delete-btn">
+              Log Out From All Devices
+            </button>
+            <a href="#" id="delete-account-link" class="delete-btn"
+              >Delete This Account</a
+            >
+          </div>
         </div>
 
         <div id="places-page" class="settings-page hidden">
           <h3>Manage Places</h3>
-          <p>Add, rename, or delete your places.</p>
+
+          <div id="add-place-form">
+            <input
+              type="text"
+              id="new-place-name"
+              placeholder="New place name"
+            />
+            <button id="add-place-btn">Add</button>
+          </div>
+
+          <hr class="modal-hr" />
+
+          <h4>Your Places</h4>
+          <ul id="place-list"></ul>
         </div>
 
         <div id="categories-page" class="settings-page hidden">
@@ -70,5 +112,16 @@
 
     <script src="config.js" type="module"></script>
     <script src="settings.js" type="module"></script>
+    <script src="app.js" type="module"></script>
+
+    <nav id="mobile-menu" class="mobile-menu-hidden">
+      <button id="mobile-menu-close-btn">&times;</button>
+      <ul>
+        <li class="mobile-menu-section">Account</li>
+        <li><a href="settings.html">Settings</a></li>
+        <li><a href="#" id="mobile-export-csv-btn">Export Log (CSV)</a></li>
+        <li><a href="#" id="mobile-logout-btn" class="delete">Log Out</a></li>
+      </ul>
+    </nav>
   </body>
 </html>

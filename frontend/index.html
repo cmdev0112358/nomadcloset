@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NomadCloset Lite</title>
+    <title>NomadCloset</title>
+    <link rel="icon" type="image/png" href="media/favicon.png">
     <style>
       body {
         visibility: hidden;
@@ -14,30 +15,30 @@
   </head>
   <body>
     <header>
-      <h1>NomadCloset Lite</h1>
+    <h1><a href="index.html">NomadCloset</a></h1>
+    <button id="burger-menu-btn">☰</button>
 
-      <div id="app-controls" class="controls">
-        <button id="add-place-btn">+ New Place</button>
-        <button id="add-item-btn">+ New Item</button>
-      </div>
-
-      <div class="action-menu-wrapper" id="user-menu-wrapper">
+    <div class="action-menu-wrapper" id="user-menu-wrapper">
         <button class="action-btn" id="user-menu-btn">
-          <span id="user-email-display">...</span> ▼
+            <span id="user-email-display">...</span> ▼
         </button>
         <div class="action-menu" id="user-menu">
-            <a href="settings.html" id="settings-link">⚙️ Settings</a>
+            <a href="settings.html" id="settings-link">Settings</a>
             <a href="#" id="export-csv-btn">Export Log (CSV)</a>
             <a href="#" id="logout-btn" class="delete">Log Out</a>
-          </div>
         </div>
-      </div>
-    </header>
+    </div>
+</header>
 
     <main class="container" id="app-container">
       <nav class="sidebar" id="places-container">
+        <div id="places-header" class="sidebar-header">
         <h2>Places</h2>
-        <ul id="places-list"></ul>
+        <button id="add-place-btn" class="add-btn" title="Add New Place"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+    </svg></button>
+    </div>
+    <ul id="places-list">
       </nav>
 
       <section class="main-content" id="items-container">
@@ -54,11 +55,12 @@
             >
           </div>
           <div id="items-header-right">
-            <div
-              class="action-menu-wrapper hidden"
-              id="bulk-action-menu-wrapper"
-            >
-              <button class="action-btn" id="bulk-action-btn">...</button>
+            <button id="add-item-btn" class="add-btn" title="Add New Item">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg></button>
+            <div class="action-menu-wrapper hidden" id="bulk-action-menu-wrapper">
+              <button class="action-btn" id="bulk-action-btn">⋮</button>
               <div class="action-menu" id="bulk-action-menu">
                 <a href="#" id="bulk-menu-move">Move Selected</a>
                 <a href="#" id="bulk-menu-delete" class="delete"
@@ -82,9 +84,19 @@
           </div>
           <div id="category-filter-wrapper">
             <select id="category-filter-select">
-              <option value="all">All Categories</option>
+                <option value="all">All Categories</option>
             </select>
-          </div>
+        </div>
+        
+        <div id="sort-wrapper">
+        <select id="sort-select">
+            <option value="name-asc">Sort by: Name (A-Z)</option>
+            <option value="name-desc">Sort by: Name (Z-A)</option>
+            <option value="created_at-desc">Sort by: Newest</option>
+            <option value="created_at-asc">Sort by: Oldest</option>
+        </select>
+        </div>
+    </div>
         </div>
 
         <ul id="items-list"></ul>
@@ -155,5 +167,16 @@
 
     <script src="config.js" type="module"></script>
     <script src="app.js" type="module"></script>
-  </body>
+    <script src="app.js" type="module"></script>
+
+<nav id="mobile-menu" class="mobile-menu-hidden">
+    <button id="mobile-menu-close-btn">&times;</button>
+    <ul>
+        <li class="mobile-menu-section">Account</li>
+        <li><a href="settings.html">Settings</a></li>
+        <li><a href="#" id="mobile-export-csv-btn">Export Log (CSV)</a></li>
+        <li><a href="#" id="mobile-logout-btn" class="delete">Log Out</a></li>
+    </ul>
+</nav>
+</body>
 </html>

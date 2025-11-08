@@ -3,6 +3,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
 // --- Configuration ---
 let CURRENT_USER_ID = null;
 let allCategoriesCache = [];
+let allPlacesCache = [];
 
 // --- Supabase Client ---
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -51,6 +52,7 @@ async function initializeApp(user) {
 
   // Setup header
   document.getElementById("user-email-display").innerText = user.email;
+  document.getElementById("profile-email-display").innerText = user.email;
   document.getElementById("logout-btn").addEventListener("click", handleLogout);
 
   // Setup navigation
@@ -58,14 +60,92 @@ async function initializeApp(user) {
 
   // Load initial data
   await getCategories();
+  await getPlaces();
 
   // Populate the default (Categories) page
   await populateCategoryList();
+
+  // Listeners for Mobile Burger Menu
+  const mobileMenu = document.getElementById("mobile-menu");
+
+  // Open Button
+  document.getElementById("burger-menu-btn").addEventListener("click", () => {
+    mobileMenu.classList.remove("mobile-menu-hidden");
+  });
+
+  // Close Button
+  document
+    .getElementById("mobile-menu-close-btn")
+    .addEventListener("click", () => {
+      mobileMenu.classList.add("mobile-menu-hidden");
+    });
+
+  // Link the buttons inside the mobile menu
+  document
+    .getElementById("mobile-logout-btn")
+    .addEventListener("click", (e) => {
+      e.preventDefault();
+      handleLogout();
+    });
 
   // Link the "Add" button
   document
     .getElementById("add-category-btn")
     .addEventListener("click", handleAddCategory);
+  document
+    .getElementById("add-place-btn")
+    .addEventListener("click", handleAddPlace);
+
+  //Link the Change Password form
+  document
+    .getElementById("change-password-form")
+    .addEventListener("submit", handleChangePassword);
+
+  // Link the "Log Out All" button
+  document
+    .getElementById("logout-all-btn")
+    .addEventListener("click", async () => {
+      if (confirm("Are you sure you want to log out from all other devices?")) {
+        const { error } = await supabaseClient.auth.signOut({
+          scope: "global",
+        });
+        if (error) {
+          alert("Error logging out: " + error.message);
+        } else {
+          alert(
+            "Successfully logged out from all sessions. You will be logged out here as well."
+          );
+          window.location.href = "login.html";
+        }
+      }
+    });
+
+  // --- Link the "Delete Account" button ---
+  const deleteLink = document.getElementById("delete-account-link");
+
+  // IMPORTANT: Change this to your email
+  const supportEmail = "delete.nomadcloset.metkf@slmails.com";
+  const userEmail = user.email;
+  const subject = "Account Deletion Request - NomadCloset";
+  const body = `Hello,
+
+Please delete my account and all associated data for the user:
+${userEmail}
+
+Thank you.
+    `;
+
+  // Set the mailto link
+  deleteLink.href = `mailto:${supportEmail}?subject=${encodeURIComponent(
+    subject
+  )}&body=${encodeURIComponent(body)}`;
+
+  // Add your "15-day" alert
+  deleteLink.addEventListener("click", () => {
+    alert(
+      "This will open your email client to send a deletion request.\n\nThis is a manual process. Your account and data will be permanently deleted within 15 days."
+    );
+  });
 
   // Setup User Menu
   document.getElementById("user-menu-btn").addEventListener("click", (e) => {
@@ -108,7 +188,14 @@ function setupNavigation() {
     // 3. Show target page
     document.getElementById(pageId).classList.remove("hidden");
 
-    // 4. Activate target nav item
+    // 4. Populate the page if it's Places or Categories
+    if (pageId === "categories-page") {
+      populateCategoryList();
+    } else if (pageId === "places-page") {
+      populatePlaceList();
+    }
+
+    // 5. Activate target nav item
     e.target.classList.add("active");
   });
 
@@ -133,6 +220,20 @@ async function getCategories() {
     return [];
   }
   allCategoriesCache = data;
+  return data || [];
+}
+
+async function getPlaces() {
+  const { data, error } = await supabaseClient
+    .from("places")
+    .select("*")
+    .eq("user_id", CURRENT_USER_ID)
+    .order("name");
+  if (error) {
+    console.error("Error fetching places:", error);
+    return [];
+  }
+  allPlacesCache = data;
   return data || [];
 }
 
@@ -230,6 +331,139 @@ async function handleDeleteCategory(categoryId, name) {
     return;
   }
   await populateCategoryList(); // Refresh the list
+}
+
+// PROFILE MANAGEMENT FUNCTIONS
+async function handleChangePassword(e) {
+  e.preventDefault(); // Stop the form from submitting
+  const newPassword = document.getElementById("new-password").value;
+  const msgEl = document.getElementById("password-message");
+
+  if (newPassword.length < 6) {
+    msgEl.innerText = "Error: Password must be at least 6 characters long.";
+    msgEl.className = "form-message error";
+    return;
+  }
+
+  msgEl.innerText = "Updating password...";
+  msgEl.className = "form-message";
+
+  // Supabase auth function to update the user
+  const { data, error } = await supabaseClient.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (error) {
+    msgEl.innerText = "Error: " + error.message;
+    msgEl.className = "form-message error";
+  } else {
+    msgEl.innerText =
+      "Success! Your password has been updated. You will be logged out everywhere.";
+    msgEl.className = "form-message success";
+    document.getElementById("new-password").value = "";
+
+    // This logs the user out from ALL devices, including this one.
+    await supabaseClient.auth.signOut({ scope: "global" });
+
+    // Redirect to login page after 2 seconds
+    setTimeout(() => {
+      window.location.href = "login.html";
+    }, 2000);
+  }
+}
+
+// PLACE MANAGEMENT FUNCTIONS
+async function populatePlaceList() {
+  const list = document.getElementById("place-list");
+  list.innerHTML = "<li>Loading...</li>";
+
+  await getPlaces();
+  list.innerHTML = "";
+
+  if (allPlacesCache.length === 0) {
+    list.innerHTML = "<li>No places found.</li>";
+  }
+
+  allPlacesCache.forEach((place) => {
+    const li = document.createElement("li");
+    li.dataset.id = place.id;
+    li.innerHTML = `
+            <span>${place.name}</span>
+            <div>
+                <button class="rename-place-btn">Rename</button>
+                <button class="delete-place-btn">X</button>
+            </div>
+        `;
+    list.appendChild(li);
+
+    // Add listeners
+    li.querySelector(".rename-place-btn").addEventListener("click", () =>
+      handleRenamePlace(place.id, place.name)
+    );
+    li.querySelector(".delete-place-btn").addEventListener("click", () =>
+      handleDeletePlace(place.id, place.name)
+    );
+  });
+}
+
+async function handleAddPlace() {
+  const nameInput = document.getElementById("new-place-name");
+  const name = nameInput.value.trim();
+  if (!name) {
+    alert("Please enter a place name.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("places")
+    .insert({ name: name, user_id: CURRENT_USER_ID });
+
+  if (error) {
+    if (error.code === "23505") alert("A place with this name already exists.");
+    else alert("Error adding place: " + error.message);
+    return;
+  }
+  nameInput.value = "";
+  await populatePlaceList(); // Just refresh the list
+}
+
+async function handleRenamePlace(placeId, oldName) {
+  const newName = prompt(`Rename place "${oldName}" to:`, oldName);
+  if (!newName || newName.trim() === "" || newName === oldName) return;
+
+  const { error } = await supabaseClient
+    .from("places")
+    .update({ name: newName.trim() })
+    .eq("id", placeId);
+
+  if (error) {
+    alert("Error renaming place: " + error.message);
+    return;
+  }
+  await populatePlaceList(); // Refresh the list
+}
+
+async function handleDeletePlace(placeId, name) {
+  if (
+    !confirm(
+      `Are you sure you want to delete the place "${name}"?\n\nAll items in this place will become "Unassigned".`
+    )
+  )
+    return;
+
+  // Our database 'items.place_id' is set to ON DELETE SET NULL.
+  // This means Supabase will automatically set all items in this place
+  // to have a place_id of NULL. This is perfect.
+  const { error } = await supabaseClient
+    .from("places")
+    .delete()
+    .eq("id", placeId);
+
+  if (error) {
+    alert("Error deleting place: " + error.message);
+    return;
+  }
+  await populatePlaceList(); // Refresh the list
 }
 
 // --- App Initialization ---
