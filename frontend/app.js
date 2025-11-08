@@ -3,33 +3,25 @@ import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
 // --- Configuration ---
 let CURRENT_USER_ID = null;
 let CURRENT_SESSION_ID = "";
-let ACTIVE_PLACE_ID = "all"; // 'all' by default
-let allPlacesCache = []; // Cache places for rendering item lists
-let allCategoriesCache = []; // NEW: Cache for database categories
+let ACTIVE_PLACE_ID = "all";
+let allPlacesCache = [];
+let allCategoriesCache = [];
+let selectedItems = [];
+let currentSearchQuery = "";
+let currentCategoryFilter = "all";
 
 // --- Supabase Client ---
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-//State for Bulk Edit
-let selectedItems = [];
-//State for Search
-let currentSearchQuery = "";
-// State for Category Filter
-let currentCategoryFilter = "all";
+// --- UI Elements (for header) ---
+const userEmailDisplay = document.getElementById("user-email-display");
 
-// --- UI Elements ---
-const appContainer = document.getElementById("app-container");
-const authContainer = document.getElementById("auth-container");
-const appControls = document.getElementById("app-controls");
-const logoutBtn = document.getElementById("logout-btn");
-const sessionIdDisplay = document.getElementById("session-id-display");
-
-// --- Auth Functions ---
+// --- NEW: Auth Functions (Page Protection) ---
 
 /**
  * Checks for an existing user session.
+ * If NOT found, redirects to login.html.
  * If found, initializes the app.
- * If not, shows the login/signup forms.
  */
 async function checkUserSession() {
   const {
@@ -42,33 +34,41 @@ async function checkUserSession() {
     return;
   }
 
-  if (session) {
-    // User is logged in
-    initializeApp(session.user);
+  if (!session) {
+    // NO user logged in
+    // Redirect to the login page
+    window.location.href = "login.html";
   } else {
-    // No user logged in
-    showAuthUI();
+    // User is logged in
+    // Start the app!
+    initializeApp(session.user);
   }
+}
+
+/**
+ * Handles the user Log Out button.
+ */
+async function handleLogout() {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) console.error("Error logging out:", error);
+
+  // After logging out, redirect to the login page
+  window.location.href = "login.html";
 }
 
 /**
  * Initializes the main application UI for a logged-in user.
  */
 async function initializeApp(user) {
+  document.body.style.visibility = "visible";
   console.log("User logged in:", user.email);
   CURRENT_USER_ID = user.id;
   CURRENT_SESSION_ID = `sess_${Date.now()}`;
 
-  // Show user email and logout button
-  sessionIdDisplay.innerText = user.email;
-  logoutBtn.classList.remove("hidden");
+  // Show user email
+  userEmailDisplay.innerText = user.email;
 
-  // Show app, hide auth
-  authContainer.classList.add("hidden");
-  appContainer.classList.remove("hidden");
-  appControls.classList.remove("hidden");
-
-  // Check for default places (same as before)
+  // Check for default places AND categories
   await initDefaultPlaces();
 
   // Fetch all categories into the cache
@@ -76,53 +76,67 @@ async function initializeApp(user) {
 
   // Setup main app UI
   setupModals();
-  document
-    .getElementById("export-csv-btn")
-    .addEventListener("click", exportActionsToCSV);
 
-  // Listener for the search bar
-  const searchInput = document.getElementById("search-input");
-  const clearSearchBtn = document.getElementById("clear-search-btn");
+  // --- Main App Listeners ---
+  document.getElementById("logout-btn").addEventListener("click", handleLogout);
 
-  searchInput.addEventListener("input", (e) => {
-    currentSearchQuery = e.target.value;
-
-    // Show or hide the "X" button
-    if (currentSearchQuery.length > 0) {
-      clearSearchBtn.classList.remove("hidden");
-    } else {
-      clearSearchBtn.classList.add("hidden");
-    }
-
-    renderItems(); // Re-render the list on every keystroke
-  });
-
-  // Listener for the "X" button
-  clearSearchBtn.addEventListener("click", (e) => {
-    // 1. Clear the JS state
-    currentSearchQuery = "";
-    // 2. Clear the HTML input box
-    searchInput.value = "";
-    // 3. Hide the "X" button
-    clearSearchBtn.classList.add("hidden");
-    // 4. Re-render the list
-    renderItems();
-  });
-
-  // Listeners for the Smart Bulk Action Bar
-  document
-    .getElementById("select-all-checkbox")
-    .addEventListener("click", handleSelectAll);
-
-  // Listeners for the new bulk "..." menu
-  document.getElementById("bulk-action-btn").addEventListener("click", (e) => {
+  // Listener for the User Menu
+  document.getElementById("user-menu-btn").addEventListener("click", (e) => {
     e.stopPropagation();
-    const menu = document.getElementById("bulk-action-menu");
+    const menu = document.getElementById("user-menu");
     const isAlreadyOpen = menu.classList.contains("show");
     closeAllActionMenus(); // close item menus
     if (!isAlreadyOpen) {
       menu.classList.add("show");
     }
+  });
+
+  document.getElementById("export-csv-btn").addEventListener("click", (e) => {
+    e.preventDefault();
+    exportActionsToCSV();
+  });
+
+  document
+    .getElementById("manage-categories-btn")
+    .addEventListener("click", (e) => {
+      e.preventDefault();
+      openCategoriesModal();
+    });
+
+  // --- Filter/Search Listeners ---
+  const searchInput = document.getElementById("search-input");
+  const clearSearchBtn = document.getElementById("clear-search-btn");
+  searchInput.addEventListener("input", (e) => {
+    currentSearchQuery = e.target.value;
+    if (currentSearchQuery.length > 0)
+      clearSearchBtn.classList.remove("hidden");
+    else clearSearchBtn.classList.add("hidden");
+    renderItems();
+  });
+  clearSearchBtn.addEventListener("click", (e) => {
+    currentSearchQuery = "";
+    searchInput.value = "";
+    clearSearchBtn.classList.add("hidden");
+    renderItems();
+  });
+  populateCategoryFilter();
+  document
+    .getElementById("category-filter-select")
+    .addEventListener("change", (e) => {
+      currentCategoryFilter = e.target.value;
+      renderItems();
+    });
+
+  // --- Bulk Action Listeners ---
+  document
+    .getElementById("select-all-checkbox")
+    .addEventListener("click", handleSelectAll);
+  document.getElementById("bulk-action-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById("bulk-action-menu");
+    const isAlreadyOpen = menu.classList.contains("show");
+    closeAllActionMenus();
+    if (!isAlreadyOpen) menu.classList.add("show");
   });
   document.getElementById("bulk-menu-move").addEventListener("click", (e) => {
     e.preventDefault();
@@ -137,139 +151,48 @@ async function initializeApp(user) {
     closeAllActionMenus();
   });
 
-  // Populate and listen to the category filter
-  populateCategoryFilter(); // Fill the dropdown
-  document
-    .getElementById("category-filter-select")
-    .addEventListener("change", (e) => {
-      currentCategoryFilter = e.target.value;
-      renderItems(); // Re-render the list
-    });
+  // --- Global Click Listener (for menus/modals) ---
+  window.addEventListener("click", function (event) {
+    if (!event.target.matches(".action-btn")) {
+      closeAllActionMenus();
+    }
+    if (event.target.classList.contains("modal")) {
+      event.target.style.display = "none";
+    }
+  });
 
-  // Initial Render
+  // --- RENDER THE APP ---
   await renderPlaces();
   await renderItems();
 }
 
-/**
- * Shows the login/signup forms.
- */
-function showAuthUI() {
-  console.log("No user session, showing Auth UI.");
-  // Hide app, show auth
-  authContainer.classList.remove("hidden");
-  appContainer.classList.add("hidden");
-  appControls.classList.add("hidden");
-
-  // Clear user display and hide logout
-  sessionIdDisplay.innerText = "Logged Out";
-  logoutBtn.classList.add("hidden");
-}
-
-/**
- * Handles the user Sign Up form.
- */
-async function handleSignUp(e) {
-  e.preventDefault();
-  const email = document.getElementById("signup-email").value;
-  const password = document.getElementById("signup-password").value;
-  const authMessage = document.getElementById("auth-message");
-
-  const { data, error } = await supabaseClient.auth.signUp({
-    email: email,
-    password: password,
-  });
-
-  if (error) {
-    authMessage.innerText = "Error signing up: " + error.message;
-    return;
-  }
-
-  // Check your Supabase project settings.
-  // If "Confirm email" is ON, show this message.
-  authMessage.innerText =
-    "Sign up successful! Please check your email to confirm.";
-  // If "Confirm email" is OFF, the user is logged in. We can auto-login them.
-  if (data.user) {
-    authMessage.innerText = "Sign up successful! Logging you in...";
-    initializeApp(data.user);
-  }
-}
-
-/**
- * Handles the user Log In form.
- */
-async function handleLogin(e) {
-  e.preventDefault();
-  const email = document.getElementById("login-email").value;
-  const password = document.getElementById("login-password").value;
-  const authMessage = document.getElementById("auth-message");
-
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: email,
-    password: password,
-  });
-
-  if (error) {
-    authMessage.innerText = "Error logging in: " + error.message;
-    return;
-  }
-
-  // Login successful, initialize the app
-  authMessage.innerText = "";
-  initializeApp(data.user);
-}
-
-/**
- * Handles the user Log Out button.
- */
-async function handleLogout() {
-  const { error } = await supabaseClient.auth.signOut();
-
-  if (error) {
-    console.error("Error logging out:", error);
-    return;
-  }
-
-  // This will clear the session.
-  // We can just reload the page, and checkUserSession() will handle the rest.
-  window.location.reload();
-}
-
-/**
- * Sets up listeners for the auth forms (login, signup, links).
- */
-function setupAuthListeners() {
-  document.getElementById("login-form").addEventListener("submit", handleLogin);
-  document
-    .getElementById("signup-form")
-    .addEventListener("submit", handleSignUp);
-  document.getElementById("logout-btn").addEventListener("click", handleLogout);
-
-  // Toggle between login and signup forms
-  const loginForm = document.getElementById("login-form");
-  const signupForm = document.getElementById("signup-form");
-
-  document.getElementById("show-signup").addEventListener("click", (e) => {
-    e.preventDefault();
-    loginForm.classList.add("hidden");
-    signupForm.classList.remove("hidden");
-    document.getElementById("auth-message").innerText = "";
-  });
-
-  document.getElementById("show-login").addEventListener("click", (e) => {
-    e.preventDefault();
-    signupForm.classList.add("hidden");
-    loginForm.classList.remove("hidden");
-    document.getElementById("auth-message").innerText = "";
-  });
-}
+//
+// ===================================================================
+// ALL OTHER FUNCTIONS (getCategories, initDefaultPlaces,
+// renderItems, handleItemSelection, etc.) remain exactly the same.
+// We are only changing the auth and initialization logic.
+// ===================================================================
+//
 
 // --- Database & App Functions ---
 
-// Checks if a new user needs default places created.
+async function getCategories() {
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .select("*")
+    .eq("user_id", CURRENT_USER_ID)
+    .order("name");
+
+  if (error) {
+    console.error("Error fetching categories:", error);
+    return [];
+  }
+  allCategoriesCache = data;
+  return data || [];
+}
+
 async function initDefaultPlaces() {
-  // 1. Check for places (no change)
+  // 1. Check for places
   const { data: placesData, error: placesError } = await supabaseClient
     .from("places")
     .select("id")
@@ -286,11 +209,10 @@ async function initDefaultPlaces() {
       { name: "Valigia", user_id: CURRENT_USER_ID },
     ];
     await supabaseClient.from("places").insert(defaultPlaces);
-    // Log action (we can simplify this)
     logAction("create_place", { metadata: { created_defaults: true } });
   }
 
-  // 2. Check for categories
+  // 2. NEW: Check for categories
   const { data: categoriesData, error: categoriesError } = await supabaseClient
     .from("categories")
     .select("id")
@@ -302,7 +224,6 @@ async function initDefaultPlaces() {
 
   if (categoriesData && categoriesData.length === 0) {
     console.log("No categories found, creating defaults...");
-    // This replaces our old constant list
     const defaultCategories = [
       { name: "Uncategorized", user_id: CURRENT_USER_ID },
       { name: "Tech", user_id: CURRENT_USER_ID },
@@ -335,54 +256,10 @@ async function getItems() {
   return data || [];
 }
 
-async function getCategories() {
-  const { data, error } = await supabaseClient
-    .from("categories")
-    .select("*")
-    .eq("user_id", CURRENT_USER_ID)
-    .order("name"); // Order them alphabetically
-
-  if (error) {
-    console.error("Error fetching categories:", error);
-    return [];
-  }
-  allCategoriesCache = data; // Store in cache
-  return data || [];
-}
-
 function getPlaceName(placeId, allPlaces) {
   if (!placeId) return "N/A";
   const place = allPlaces.find((p) => p.id === placeId);
   return place ? place.name : "Unknown";
-}
-
-// Populates the category dropdown in the 'Add Item' modal
-function populateCategoryDropdown() {
-  const select = document.getElementById("new-item-category");
-  select.innerHTML = ""; // Clear old options
-
-  // Use the cache we fetched from the database
-  allCategoriesCache.forEach((category) => {
-    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
-  });
-}
-
-/**
- * Populates the category FILTER dropdown in the filter bar
- */
-function populateCategoryFilter() {
-  const select = document.getElementById("category-filter-select");
-  select.innerHTML = ""; // Clear old options
-
-  select.innerHTML += `<option value="all">All Categories</option>`;
-
-  // Use the cache we fetched from the database
-  allCategoriesCache.forEach((category) => {
-    // We use the ID for the value
-    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
-  });
-
-  select.value = currentCategoryFilter;
 }
 
 async function logAction(action_type, data = {}) {
@@ -402,8 +279,6 @@ async function logAction(action_type, data = {}) {
     newAction.to_place_id = data.place_id;
   }
   if (action_type === "create_place") {
-    // We need the ID from the DB, so this log is slightly different.
-    // Let's just log the name.
     newAction.item_name = data.place_name;
   }
 
@@ -412,7 +287,7 @@ async function logAction(action_type, data = {}) {
   else console.log("Action Logged:", newAction);
 }
 
-// --- Render Functions (Unchanged) ---
+// --- Render Functions ---
 async function renderPlaces() {
   const places = await getPlaces();
   allPlacesCache = places; // Update cache
@@ -430,6 +305,12 @@ async function renderPlaces() {
   ul.querySelectorAll("li").forEach((li) => {
     li.addEventListener("click", () => {
       ACTIVE_PLACE_ID = li.getAttribute("data-id");
+      // When we select a new place, clear the search
+      currentSearchQuery = "";
+      document.getElementById("search-input").value = "";
+      currentCategoryFilter = "all";
+      populateCategoryFilter(); // Resets the dropdown
+
       renderPlaces();
       renderItems();
     });
@@ -459,7 +340,7 @@ async function renderItems() {
   // 3. Filter by Category
   const filteredItems =
     currentCategoryFilter === "all"
-      ? searchFilteredItems // No filter, show all
+      ? searchFilteredItems
       : searchFilteredItems.filter(
           (item) => item.category_id === currentCategoryFilter
         );
@@ -486,7 +367,8 @@ async function renderItems() {
                   <input type="checkbox" class="item-checkbox" data-id="${
                     item.id
                   }" ${isSelected ? "checked" : ""}>
-                  <div> <strong>${item.name}</strong> (${placeName})
+                  <div> 
+                    <strong>${item.name}</strong> (${placeName})
                     <span class="item-category">${
                       item.categories ? item.categories.name : ""
                     }</span>
@@ -515,7 +397,7 @@ async function renderItems() {
       `;
   });
 
-  // --- Event Listeners (No change to menu listeners) ---
+  // --- Event Listeners for Menus ---
   ul.querySelectorAll(".action-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -555,19 +437,16 @@ async function renderItems() {
     });
   });
 
-  // --- NEW: Event Listeners for Checkboxes ---
+  // --- Event Listeners for Checkboxes ---
   ul.querySelectorAll(".item-checkbox").forEach((checkbox) => {
     checkbox.addEventListener("click", (e) => {
-      e.stopPropagation(); // Stop click from bubbling to the LI
+      e.stopPropagation();
       const itemId = e.target.getAttribute("data-id");
       handleItemSelection(itemId, filteredItems.length);
     });
   });
-
-  // NEW: Make the whole LI clickable to toggle checkbox
   ul.querySelectorAll("li").forEach((li) => {
     li.addEventListener("click", (e) => {
-      // Don't trigger if clicking a button, link, or the checkbox itself
       if (
         e.target.matches("button") ||
         e.target.matches("a") ||
@@ -575,265 +454,10 @@ async function renderItems() {
         e.target.closest(".action-menu-wrapper")
       )
         return;
-
       const itemId = li.getAttribute("data-id");
       handleItemSelection(itemId, filteredItems.length);
     });
   });
-}
-
-// Toggles the visibility of a specific item's action menu.
-function toggleActionMenu(itemId) {
-  const menu = document.getElementById(`menu-${itemId}`);
-  if (!menu) return;
-
-  // Check if this menu is already open
-  const isAlreadyOpen = menu.classList.contains("show");
-
-  // First, close all other menus
-  closeAllActionMenus();
-
-  // If this menu was not already open, show it
-  if (!isAlreadyOpen) {
-    menu.classList.add("show");
-  }
-}
-
-// Closes all open action menus.
-function closeAllActionMenus() {
-  document.querySelectorAll(".action-menu.show").forEach((openMenu) => {
-    openMenu.classList.remove("show");
-  });
-}
-
-// Handles deleting an item from the database.
-async function handleDeleteItem(itemId, itemName) {
-  console.log(`Deleting item ${itemId}: ${itemName}`);
-
-  // 1. Delete the item from Supabase
-  const { error } = await supabaseClient
-    .from("items")
-    .delete()
-    .eq("id", itemId);
-
-  if (error) {
-    console.error("Error deleting item:", error);
-    alert("Error deleting item: " + error.message);
-    return;
-  }
-
-  // 2. Log the action
-  logAction("delete_item", {
-    item_id: itemId,
-    item_name: itemName,
-  });
-
-  // 3. Re-render the items list to show the change
-  await renderItems();
-}
-
-async function handleRenameItem(itemId, newName) {
-  console.log(`Renaming item ${itemId} to: ${newName}`);
-
-  // 1. Update the item in Supabase
-  const { error } = await supabaseClient
-    .from("items")
-    .update({ name: newName }) // Update the name
-    .eq("id", itemId);
-
-  if (error) {
-    console.error("Error renaming item:", error);
-    alert("Error renaming item: " + error.message);
-    return;
-  }
-
-  // 2. Log the action
-  logAction("rename_item", {
-    item_id: itemId,
-    item_name: newName, // Log the new name
-    metadata: { note: `Renamed from old name` }, // We could store the old name here
-  });
-
-  // 3. Re-render the items list
-  await renderItems();
-}
-
-/**
- * Handles adding/removing an item from the selectedItems array.
- */
-function handleItemSelection(itemId, totalItems) {
-  const index = selectedItems.indexOf(itemId);
-
-  if (index > -1) {
-    selectedItems.splice(index, 1);
-  } else {
-    selectedItems.push(itemId);
-  }
-
-  // Re-render just the list to show the highlight
-  renderItems();
-  // Update the header UI
-  updateBulkActionUI(totalItems);
-}
-
-/**
- * Updates the text in the bulk action bar (e.g., "(2 items selected)")
- */
-function updateBulkActionUI(totalItems = 0) {
-  const bulkMenu = document.getElementById("bulk-action-menu-wrapper");
-  const titleHeader = document.getElementById("items-header-title");
-  const countSpan = document.getElementById("bulk-selected-count");
-  const selectAllCheckbox = document.getElementById("select-all-checkbox");
-
-  if (selectedItems.length > 0) {
-    // ---- Show the Bulk UI ----
-    titleHeader.classList.add("hidden");
-    countSpan.classList.remove("hidden");
-    bulkMenu.classList.remove("hidden");
-
-    countSpan.innerText = `${selectedItems.length} selected`;
-    selectAllCheckbox.checked = selectedItems.length === totalItems;
-  } else {
-    // ---- Show the Normal Header ----
-    titleHeader.classList.remove("hidden");
-    countSpan.classList.add("hidden");
-    bulkMenu.classList.add("hidden");
-
-    selectAllCheckbox.checked = false;
-  }
-}
-
-// --- ADD THESE NEW FUNCTIONS ---
-
-/**
- * Handles the "Select All" checkbox.
- */
-async function handleSelectAll() {
-  const selectAllCheckbox = document.getElementById("select-all-checkbox");
-  const allItemNodes = document.querySelectorAll("#items-list li");
-
-  if (selectAllCheckbox.checked) {
-    // Select all items currently visible
-    const allItemIds = [];
-    allItemNodes.forEach((li) => {
-      allItemIds.push(li.getAttribute("data-id"));
-    });
-    selectedItems = allItemIds;
-  } else {
-    // Deselect all
-    selectedItems = [];
-  }
-  renderItems();
-  updateBulkActionUI(allItemNodes.length);
-}
-
-/**
- * Handles the "Bulk Move" button.
- * Opens the new bulk-move-modal.
- */
-async function handleBulkMove() {
-  if (selectedItems.length === 0) {
-    alert("Please select items to move.");
-    return;
-  }
-
-  // 1. Populate the dropdown in the bulk move modal
-  const select = document.getElementById("bulk-move-place-select");
-  select.innerHTML = ""; // Clear old options
-  allPlacesCache.forEach((place) => {
-    select.innerHTML += `<option value="${place.id}">${place.name}</option>`;
-  });
-
-  // 2. Update the count
-  document.getElementById(
-    "bulk-move-count"
-  ).innerText = `${selectedItems.length}`;
-
-  // 3. Show the modal
-  document.getElementById("bulk-move-modal").style.display = "block";
-}
-
-/**
- * Handles the "Bulk Delete" button.
- */
-async function handleBulkDelete() {
-  if (
-    !confirm(
-      `Are you sure you want to delete ${selectedItems.length} items? This cannot be undone.`
-    )
-  ) {
-    return;
-  }
-
-  console.log(`Deleting ${selectedItems.length} items...`);
-
-  // 1. Delete the items from Supabase
-  // We use the 'in' filter to delete all items whose ID is in our array
-  const { error } = await supabaseClient
-    .from("items")
-    .delete()
-    .in("id", selectedItems);
-
-  if (error) {
-    console.error("Error bulk deleting items:", error);
-    alert("Error deleting items: " + error.message);
-    return;
-  }
-
-  // 2. Log this as ONE action (for now)
-  logAction("bulk_delete_items", {
-    metadata: {
-      item_count: selectedItems.length,
-      item_ids: selectedItems,
-    },
-  });
-
-  // 3. Clear selection and re-render
-  selectedItems = [];
-  renderItems();
-  updateBulkActionUI();
-}
-
-/**
- * Runs when the user clicks "Move Items" in the bulk move modal.
- */
-async function handleSaveBulkMove() {
-  const toPlaceId = document.getElementById("bulk-move-place-select").value;
-  if (!toPlaceId) {
-    alert("Could not find a place to move to.");
-    return;
-  }
-
-  console.log(`Bulk moving ${selectedItems.length} items to ${toPlaceId}`);
-
-  // 1. Update all items in the array in one request
-  const { error } = await supabaseClient
-    .from("items")
-    .update({ place_id: toPlaceId }) // Set the new place
-    .in("id", selectedItems); // For all items in our array
-
-  if (error) {
-    console.error("Error bulk moving items:", error);
-    alert("Error moving items: " + error.message);
-    return;
-  }
-
-  // 2. Log this as one action
-  logAction("bulk_move_items", {
-    to_place_id: toPlaceId,
-    metadata: {
-      item_count: selectedItems.length,
-      item_ids: selectedItems,
-    },
-  });
-
-  // 3. Close modal
-  document.getElementById("bulk-move-modal").style.display = "none";
-
-  // 4. Clear selection and re-render
-  selectedItems = [];
-  renderItems(); // Re-draw the items list
-  updateBulkActionUI(); // Show the normal header
 }
 
 function updatePlaceDropdowns(places) {
@@ -851,15 +475,31 @@ function updatePlaceDropdowns(places) {
   });
 }
 
-// --- Modal Handling (Unchanged, but one fix in save-place) ---
-function setupModals() {
-  document.querySelectorAll(".modal").forEach((modal) => {
-    const closeBtn = modal.querySelector(".close-btn");
-    closeBtn.onclick = () => {
-      modal.style.display = "none";
-    };
+function populateCategoryDropdown() {
+  const select = document.getElementById("new-item-category");
+  select.innerHTML = "";
+
+  allCategoriesCache.forEach((category) => {
+    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+  });
+}
+
+function populateCategoryFilter() {
+  const select = document.getElementById("category-filter-select");
+  select.innerHTML = "";
+
+  select.innerHTML += `<option value="all">All Categories</option>`;
+
+  allCategoriesCache.forEach((category) => {
+    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
   });
 
+  select.value = currentCategoryFilter;
+}
+
+// --- Modal Handling ---
+function setupModals() {
+  // Add/Item/Place modals
   const addPlaceModal = document.getElementById("add-place-modal");
   document.getElementById("add-place-btn").onclick = () => {
     addPlaceModal.style.display = "block";
@@ -880,7 +520,6 @@ function setupModals() {
       return;
     }
 
-    // Log action
     logAction("create_place", {
       place_id: data[0].id,
       place_name: data[0].name,
@@ -891,16 +530,14 @@ function setupModals() {
     renderPlaces();
   };
 
-  // --- Add Item Modal ---
   const addItemModal = document.getElementById("add-item-modal");
   document.getElementById("add-item-btn").onclick = () => {
-    // Populate the category dropdown *before* showing the modal
     populateCategoryDropdown();
-
+    // Auto-select the first place in the list
+    document.getElementById("new-item-place").selectedIndex = 0;
     addItemModal.style.display = "block";
     document.getElementById("new-item-name").focus();
   };
-
   document.getElementById("save-item-btn").onclick = async () => {
     const name = document.getElementById("new-item-name").value;
     const category_id = document.getElementById("new-item-category").value;
@@ -913,7 +550,6 @@ function setupModals() {
       place_id: place_id,
       user_id: CURRENT_USER_ID,
     };
-
     const { data, error } = await supabaseClient
       .from("items")
       .insert(newItem)
@@ -931,11 +567,11 @@ function setupModals() {
     });
 
     document.getElementById("new-item-name").value = "";
-    document.getElementById("new-item-category").value = "";
     addItemModal.style.display = "none";
     renderItems();
   };
 
+  // Rename/Move modals
   document.getElementById("save-move-btn").onclick = async () => {
     const itemId = document.getElementById("move-item-id").value;
     const toPlaceId = document.getElementById("move-item-place").value;
@@ -974,7 +610,7 @@ function setupModals() {
     document.getElementById("move-item-modal").style.display = "none";
     renderItems();
   };
-  // --- Rename Item Modal ---
+
   document.getElementById("save-rename-btn").onclick = async () => {
     const itemId = document.getElementById("rename-item-id").value;
     const newName = document.getElementById("rename-item-name-new").value;
@@ -983,24 +619,80 @@ function setupModals() {
       alert("Please enter a new name.");
       return;
     }
-
-    // Call our new handler function
     await handleRenameItem(itemId, newName);
-
-    // Close the modal
     document.getElementById("rename-item-modal").style.display = "none";
   };
 
-  // --- Bulk Move Modal ---
+  // Bulk Move modal
   document.getElementById("save-bulk-move-btn").onclick = handleSaveBulkMove;
+
+  // Manage Categories modal
+  document.getElementById("add-category-btn").onclick = handleAddCategory;
+
+  // Generic close buttons
+  document.querySelectorAll(".modal .close-btn").forEach((btn) => {
+    btn.onclick = () => {
+      btn.closest(".modal").style.display = "none";
+    };
+  });
+}
+
+// --- Action Menu Functions ---
+function toggleActionMenu(itemId) {
+  const menu = document.getElementById(`menu-${itemId}`);
+  if (!menu) return;
+  const isAlreadyOpen = menu.classList.contains("show");
+  closeAllActionMenus();
+  if (!isAlreadyOpen) menu.classList.add("show");
+}
+
+function closeAllActionMenus() {
+  document.querySelectorAll(".action-menu.show").forEach((openMenu) => {
+    openMenu.classList.remove("show");
+  });
+}
+
+// --- Single Item Action Handlers ---
+async function handleRenameItem(itemId, newName) {
+  console.log(`Renaming item ${itemId} to: ${newName}`);
+  const { error } = await supabaseClient
+    .from("items")
+    .update({ name: newName })
+    .eq("id", itemId);
+
+  if (error) {
+    console.error("Error renaming item:", error);
+    alert("Error renaming item: " + error.message);
+    return;
+  }
+  logAction("rename_item", {
+    item_id: itemId,
+    item_name: newName,
+    metadata: { note: `Renamed from old name` },
+  });
+  await renderItems();
+}
+
+async function handleDeleteItem(itemId, itemName) {
+  console.log(`Deleting item ${itemId}: ${itemName}`);
+  const { error } = await supabaseClient
+    .from("items")
+    .delete()
+    .eq("id", itemId);
+
+  if (error) {
+    console.error("Error deleting item:", error);
+    alert("Error deleting item: " + error.message);
+    return;
+  }
+  logAction("delete_item", { item_id: itemId, item_name: itemName });
+  await renderItems();
 }
 
 function openMoveModal(id, name, fromId) {
   const targetSelect = document.getElementById("move-item-place");
   const firstDifferentPlace = allPlacesCache.find((p) => p.id !== fromId);
-  if (firstDifferentPlace) {
-    targetSelect.value = firstDifferentPlace.id;
-  }
+  if (firstDifferentPlace) targetSelect.value = firstDifferentPlace.id;
   document.getElementById("move-item-name").innerText = name;
   document.getElementById("move-item-id").value = id;
   document.getElementById("move-item-modal").style.display = "block";
@@ -1009,28 +701,258 @@ function openMoveModal(id, name, fromId) {
 function openRenameModal(id, currentName) {
   document.getElementById("rename-item-id").value = id;
   document.getElementById("rename-item-name-old").innerText = currentName;
-  document.getElementById("rename-item-name-new").value = currentName; // Pre-fill with old name
+  document.getElementById("rename-item-name-new").value = currentName;
   document.getElementById("rename-item-modal").style.display = "block";
   document.getElementById("rename-item-name-new").focus();
 }
 
-// --- Export Function (Unchanged) ---
+// --- Bulk Action Handlers ---
+function handleItemSelection(itemId, totalItems) {
+  const index = selectedItems.indexOf(itemId);
+  if (index > -1) selectedItems.splice(index, 1);
+  else selectedItems.push(itemId);
+  renderItems();
+  updateBulkActionUI(totalItems);
+}
+
+function updateBulkActionUI(totalItems = 0) {
+  const bulkMenu = document.getElementById("bulk-action-menu-wrapper");
+  const titleHeader = document.getElementById("items-header-title");
+  const countSpan = document.getElementById("bulk-selected-count");
+  const selectAllCheckbox = document.getElementById("select-all-checkbox");
+
+  if (selectedItems.length > 0) {
+    titleHeader.classList.add("hidden");
+    countSpan.classList.remove("hidden");
+    bulkMenu.classList.remove("hidden");
+    countSpan.innerText = `${selectedItems.length} selected`;
+    selectAllCheckbox.checked = selectedItems.length === totalItems;
+  } else {
+    titleHeader.classList.remove("hidden");
+    countSpan.classList.add("hidden");
+    bulkMenu.classList.add("hidden");
+    selectAllCheckbox.checked = false;
+  }
+}
+
+async function handleSelectAll() {
+  const selectAllCheckbox = document.getElementById("select-all-checkbox");
+  const allItemNodes = document.querySelectorAll("#items-list li");
+
+  if (selectAllCheckbox.checked) {
+    const allItemIds = [];
+    allItemNodes.forEach((li) => {
+      allItemIds.push(li.getAttribute("data-id"));
+    });
+    selectedItems = allItemIds;
+  } else {
+    selectedItems = [];
+  }
+  renderItems();
+  updateBulkActionUI(allItemNodes.length);
+}
+
+async function handleBulkMove() {
+  if (selectedItems.length === 0) {
+    alert("Please select items to move.");
+    return;
+  }
+  const select = document.getElementById("bulk-move-place-select");
+  select.innerHTML = "";
+  allPlacesCache.forEach((place) => {
+    select.innerHTML += `<option value="${place.id}">${place.name}</option>`;
+  });
+  document.getElementById(
+    "bulk-move-count"
+  ).innerText = `${selectedItems.length}`;
+  document.getElementById("bulk-move-modal").style.display = "block";
+}
+
+async function handleSaveBulkMove() {
+  const toPlaceId = document.getElementById("bulk-move-place-select").value;
+  if (!toPlaceId) {
+    alert("Could not find a place to move to.");
+    return;
+  }
+  console.log(`Bulk moving ${selectedItems.length} items to ${toPlaceId}`);
+
+  const { error } = await supabaseClient
+    .from("items")
+    .update({ place_id: toPlaceId })
+    .in("id", selectedItems);
+
+  if (error) {
+    console.error("Error bulk moving items:", error);
+    alert("Error moving items: " + error.message);
+    return;
+  }
+  logAction("bulk_move_items", {
+    to_place_id: toPlaceId,
+    metadata: { item_count: selectedItems.length, item_ids: selectedItems },
+  });
+
+  document.getElementById("bulk-move-modal").style.display = "none";
+  selectedItems = [];
+  renderItems();
+  updateBulkActionUI();
+}
+
+async function handleBulkDelete() {
+  if (
+    !confirm(
+      `Are you sure you want to delete ${selectedItems.length} items? This cannot be undone.`
+    )
+  ) {
+    return;
+  }
+  console.log(`Deleting ${selectedItems.length} items...`);
+
+  const { error } = await supabaseClient
+    .from("items")
+    .delete()
+    .in("id", selectedItems);
+
+  if (error) {
+    console.error("Error bulk deleting items:", error);
+    alert("Error deleting items: " + error.message);
+    return;
+  }
+  logAction("bulk_delete_items", {
+    metadata: { item_count: selectedItems.length, item_ids: selectedItems },
+  });
+
+  selectedItems = [];
+  renderItems();
+  updateBulkActionUI();
+}
+
+// --- Category Management Functions ---
+async function openCategoriesModal() {
+  const list = document.getElementById("category-list");
+  list.innerHTML = "<li>Loading...</li>";
+
+  await getCategories();
+  list.innerHTML = "";
+
+  if (allCategoriesCache.length === 0) {
+    list.innerHTML = "<li>No categories found.</li>";
+  }
+
+  allCategoriesCache.forEach((category) => {
+    const li = document.createElement("li");
+    li.dataset.id = category.id;
+    li.innerHTML = `
+            <span>${category.name}</span>
+            <div>
+                <button class="rename-cat-btn">Rename</button>
+                <button class="delete-cat-btn">X</button>
+            </div>
+        `;
+    list.appendChild(li);
+
+    li.querySelector(".rename-cat-btn").addEventListener("click", () =>
+      handleRenameCategory(category.id, category.name)
+    );
+    li.querySelector(".delete-cat-btn").addEventListener("click", () =>
+      handleDeleteCategory(category.id, category.name)
+    );
+  });
+
+  document.getElementById("manage-categories-modal").style.display = "block";
+}
+
+async function handleAddCategory() {
+  const nameInput = document.getElementById("new-category-name");
+  const name = nameInput.value.trim();
+
+  if (!name) {
+    alert("Please enter a category name.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .insert({ name: name, user_id: CURRENT_USER_ID })
+    .select();
+
+  if (error) {
+    if (error.code === "23505") {
+      alert("A category with this name already exists.");
+    } else {
+      alert("Error adding category: " + error.message);
+    }
+    return;
+  }
+  nameInput.value = "";
+  await getCategories();
+  await openCategoriesModal();
+  populateCategoryFilter();
+  populateCategoryDropdown();
+}
+
+async function handleRenameCategory(categoryId, oldName) {
+  const newName = prompt(`Rename category "${oldName}" to:`, oldName);
+
+  if (!newName || newName.trim() === "" || newName === oldName) {
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("categories")
+    .update({ name: newName.trim() })
+    .eq("id", categoryId);
+
+  if (error) {
+    alert("Error renaming category: " + error.message);
+    return;
+  }
+
+  await getCategories();
+  await openCategoriesModal();
+  populateCategoryFilter();
+  populateCategoryDropdown();
+}
+
+async function handleDeleteCategory(categoryId, name) {
+  if (
+    !confirm(
+      `Are you sure you want to delete the category "${name}"?\n\nThis will NOT delete your items, but they will become "Uncategorized".`
+    )
+  ) {
+    return;
+  }
+  const { error } = await supabaseClient
+    .from("categories")
+    .delete()
+    .eq("id", categoryId);
+
+  if (error) {
+    alert("Error deleting category: " + error.message);
+    return;
+  }
+
+  await getCategories();
+  await openCategoriesModal();
+  populateCategoryFilter();
+  populateCategoryDropdown();
+  renderItems();
+}
+
+// --- Export Function ---
 async function exportActionsToCSV() {
+  // This is unchanged
   const { data: actions, error } = await supabaseClient
     .from("actions")
     .select("*")
     .eq("user_id", CURRENT_USER_ID);
-
   if (error) return alert("Error fetching actions: " + error.message);
   if (!actions || actions.length === 0) {
     alert("No actions to export.");
     return;
   }
-
   const headers = Object.keys(actions[0]);
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += headers.join(",") + "\n";
-
   actions.forEach((row) => {
     const values = headers.map((header) => {
       let val = row[header];
@@ -1046,7 +968,6 @@ async function exportActionsToCSV() {
     });
     csvContent += values.join(",") + "\n";
   });
-
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
@@ -1054,29 +975,12 @@ async function exportActionsToCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-
   logAction("export_csv", { metadata: { rows: actions.length } });
 }
 
-// --- App Initialization ---
+// --- App Initialization (NEW) ---
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Set up listeners for the Login/Signup forms
-  setupAuthListeners();
-
-  // 2. Check if the user is already logged in
+  // 1. Check if the user is logged in
+  // This is the most important step
   checkUserSession();
-
-  // Add a global click listener for menus AND modals
-  // This will close any open "..." menus if you click anywhere else
-  window.addEventListener("click", function (event) {
-    // 1. Close "..." menus if clicking outside
-    if (!event.target.matches(".action-btn")) {
-      closeAllActionMenus();
-    }
-
-    // 2. Close modals if clicking on the gray background
-    if (event.target.classList.contains("modal")) {
-      event.target.style.display = "none";
-    }
-  });
 });
