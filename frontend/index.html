@@ -1,92 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NomadCloset Lite</title>
-    <link rel="stylesheet" href="style.css">
+    <title>NomadCloset Lite</title>
+    <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
-
+  </head>
+  <body>
     <header>
-        <h1>NomadCloset Lite</h1>
-        <div class="session-info">
-            <span id="session-id-display">...</span>
-            <button id="logout-btn" class="hidden">Log Out</button>
-        </div>
-        <div id="app-controls" class="controls hidden">
-            <button id="add-place-btn">New Place</button>
-            <button id="add-item-btn">New Item</button>
-            <button id="export-csv-btn">Export Log (CSV)</button>
-        </div>
+      <h1>NomadCloset Lite</h1>
+      <div class="session-info">
+        <span id="session-id-display">...</span>
+        <button id="logout-btn" class="hidden">Log Out</button>
+      </div>
+      <div id="app-controls" class="controls hidden">
+        <button id="add-place-btn">New Place</button>
+        <button id="add-item-btn">New Item</button>
+        <button id="export-csv-btn">Export Log (CSV)</button>
+      </div>
     </header>
 
     <div id="auth-container">
-        <form class="auth-form" id="login-form">
-            <h3>Log In</h3>
-            <input type="email" id="login-email" placeholder="Email" required>
-            <input type="password" id="login-password" placeholder="Password" required>
-            <button type="submit" id="login-btn">Log In</button>
-            <p>New user? <a href="#" id="show-signup">Sign Up</a></p>
-        </form>
+      <form class="auth-form" id="login-form">
+        <h3>Log In</h3>
+        <input type="email" id="login-email" placeholder="Email" required />
+        <input
+          type="password"
+          id="login-password"
+          placeholder="Password"
+          required
+        />
+        <button type="submit" id="login-btn">Log In</button>
+        <p>New user? <a href="#" id="show-signup">Sign Up</a></p>
+      </form>
 
-        <form class="auth-form hidden" id="signup-form">
-            <h3>Sign Up</h3>
-            <input type="email" id="signup-email" placeholder="Email" required>
-            <input type="password" id="signup-password" placeholder="New Password" required>
-            <button type="submit" id="signup-btn">Sign Up</button>
-            <p>Have an account? <a href="#" id="show-login">Log In</a></p>
-        </form>
-        <p id="auth-message"></p>
+      <form class="auth-form hidden" id="signup-form">
+        <h3>Sign Up</h3>
+        <input type="email" id="signup-email" placeholder="Email" required />
+        <input
+          type="password"
+          id="signup-password"
+          placeholder="New Password"
+          required
+        />
+        <button type="submit" id="signup-btn">Sign Up</button>
+        <p>Have an account? <a href="#" id="show-login">Log In</a></p>
+      </form>
+      <p id="auth-message"></p>
     </div>
 
     <main class="container hidden" id="app-container">
-        <nav class="sidebar" id="places-container">
-            <h2>Places</h2>
-            <ul id="places-list">
-                </ul>
-        </nav>
+      <nav class="sidebar" id="places-container">
+        <h2>Places</h2>
+        <ul id="places-list"></ul>
+      </nav>
 
-        <section class="main-content" id="items-container">
-            <h2>Items</h2>
-            <ul id="items-list">
-                </ul>
-        </section>
+      <section class="main-content" id="items-container">
+        <h2>Items</h2>
+        <ul id="items-list"></ul>
+      </section>
     </main>
 
     <div id="add-place-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h3>Create New Place</h3>
-            <input type="text" id="new-place-name" placeholder="Place name (e.g., Home Office)">
-            <button id="save-place-btn">Save</button>
-        </div>
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h3>Create New Place</h3>
+        <input
+          type="text"
+          id="new-place-name"
+          placeholder="Place name (e.g., Home Office)"
+        />
+        <button id="save-place-btn">Save</button>
+      </div>
     </div>
 
     <div id="add-item-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h3>Add New Item</h3>
-            <input type="text" id="new-item-name" placeholder="Item name (e.g., Black Hoodie)">
-            <input type="text" id="new-item-category" placeholder="Category (e.g., Clothing)">
-            <select id="new-item-place"></select>
-            <button id="save-item-btn">Save</button>
-        </div>
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h3>Add New Item</h3>
+        <input
+          type="text"
+          id="new-item-name"
+          placeholder="Item name (e.g., Black Hoodie)"
+        />
+        <input
+          type="text"
+          id="new-item-category"
+          placeholder="Category (e.g., Clothing)"
+        />
+        <select id="new-item-place"></select>
+        <button id="save-item-btn">Save</button>
+      </div>
     </div>
 
     <div id="move-item-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h3>Move Item</h3>
-            <p>Move <strong id="move-item-name">...</strong> to:</p>
-            <select id="move-item-place"></select>
-            <button id="save-move-btn">Move</button>
-            <input type="hidden" id="move-item-id">
-        </div>
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h3>Move Item</h3>
+        <p>Move <strong id="move-item-name">...</strong> to:</p>
+        <select id="move-item-place"></select>
+        <button id="save-move-btn">Move</button>
+        <input type="hidden" id="move-item-id" />
+      </div>
     </div>
 
     <script src="config.js" type="module"></script>
     <script src="app.js" type="module"></script>
-</body>
+  </body>
 </html>
