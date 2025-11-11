@@ -11,6 +11,7 @@ let currentSearchQuery = "";
 let currentCategoryFilter = "all";
 let currentSortOrder = "name-asc";
 let allPackingListsCache = [];
+let currentMode = "inventory";
 
 // --- Supabase Client ---
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -44,6 +45,54 @@ async function checkUserSession() {
     // User is logged in
     // Start the app!
     initializeApp(session.user);
+  }
+}
+
+/**
+ * Toggles the UI between 'inventory' and 'shopping' modes.
+ */
+
+function setAppMode(mode) {
+  currentMode = mode;
+
+  // Get all the UI panels
+  const inventorySidebar = document.getElementById("inventory-sidebar-content");
+  const shoppingSidebar = document.getElementById("shopping-sidebar-content");
+  const inventoryContent = document.getElementById("inventory-content");
+  const shoppingContent = document.getElementById("shopping-content");
+
+  const inventoryBtn = document.getElementById("mode-btn-inventory");
+  const shoppingBtn = document.getElementById("mode-btn-shopping");
+
+  if (mode === "shopping") {
+    // ---- Show Shopping UI ----
+    inventorySidebar.classList.add("hidden");
+    inventoryContent.classList.add("hidden");
+    shoppingSidebar.classList.remove("hidden");
+    shoppingContent.classList.remove("hidden");
+
+    inventoryBtn.classList.remove("active");
+    shoppingBtn.classList.add("active");
+
+    // --- Populate the place dropdown ---
+    const placeSelect = document.getElementById("shopping-place-select");
+    placeSelect.innerHTML = ""; // Clear old
+    // We re-use the cache from our inventory!
+    allPlacesCache.forEach((place) => {
+      placeSelect.innerHTML += `<option value="${place.id}">${place.name}</option>`;
+    });
+
+    // --- Run the code to build the shopping page ---
+    renderShoppingList();
+  } else {
+    // ---- Show Inventory UI (Default) ----
+    inventorySidebar.classList.remove("hidden");
+    inventoryContent.classList.remove("hidden");
+    shoppingSidebar.classList.add("hidden");
+    shoppingContent.classList.add("hidden");
+
+    inventoryBtn.classList.add("active");
+    shoppingBtn.classList.remove("active");
   }
 }
 
@@ -190,6 +239,19 @@ async function initializeApp(user) {
       event.target.style.display = "none";
     }
   });
+
+  // Listeners for Mode Switcher
+  document
+    .getElementById("mode-btn-inventory")
+    .addEventListener("click", () => setAppMode("inventory"));
+  document
+    .getElementById("mode-btn-shopping")
+    .addEventListener("click", () => setAppMode("shopping"));
+
+  // Listen to the "Shopping for" dropdown
+  document
+    .getElementById("shopping-place-select")
+    .addEventListener("change", renderShoppingList);
 
   // --- RENDER THE APP ---
   await renderPlaces();
@@ -712,6 +774,275 @@ async function renderItems() {
       });
     });
   }
+}
+
+//
+// =========================
+// SHOPPING LIST FUNCTIONS
+// =========================
+//
+
+/**
+ * Main render function for the Shopping List mode.
+ * Fetches and displays boards for the selected place.
+ */
+async function renderShoppingList() {
+  const placeId = document.getElementById("shopping-place-select").value;
+  const shoppingContent = document.getElementById("shopping-content");
+  shoppingContent.innerHTML = ""; // Clear old content
+
+  if (!placeId) {
+    shoppingContent.innerHTML =
+      '<p>Please create a "Place" in your inventory first.</p>';
+    return;
+  }
+
+  // 1. Fetch the boards (e.g., "Food", "Freezer") for this place
+  const { data: lists, error } = await supabaseClient
+    .from("shopping_lists")
+    .select(
+      `
+            *,
+            shopping_items ( id, name, is_taken )
+        `
+    ) // Fetch boards AND their nested items!
+    .eq("user_id", CURRENT_USER_ID)
+    .eq("place_id", placeId)
+    .order("name");
+
+  if (error) {
+    console.error("Error fetching shopping lists:", error);
+    shoppingContent.innerHTML = "<p>Error loading shopping lists.</p>";
+    return;
+  }
+
+  lists.sort((a, b) => a.name.localeCompare(b.name));
+
+  // 2. Render the "Boards" UI (Google Keep style)
+  lists.forEach((list) => {
+    const board = document.createElement("div");
+    board.className = "shopping-board";
+    board.dataset.listId = list.id;
+
+    // Create the item list HTML
+    let itemsHTML = "";
+    list.shopping_items.sort((a, b) => a.is_taken - b.is_taken); // Show "taken" at bottom
+
+    list.shopping_items.forEach((item) => {
+      itemsHTML += `
+                <li class="${item.is_taken ? "taken" : ""}">
+                    <input type="checkbox" class="shopping-item-checkbox" data-item-id="${
+                      item.id
+                    }" ${item.is_taken ? "checked" : ""}>
+                    <span>${item.name}</span>
+                    <button class="delete-item-btn" data-item-id="${
+                      item.id
+                    }">&times;</button>
+                </li>
+            `;
+    });
+
+    // Create the full board HTML
+    board.innerHTML = `
+            <div class="shopping-board-header">
+                <h3>${list.name}</h3>
+                <div class="action-menu-wrapper">
+                    <button class="action-btn" data-list-id="${list.id}">⋮</button>
+                    <div class="action-menu" id="menu-shop-list-${list.id}">
+                        <a href="#" class="menu-rename-list" data-id="${list.id}" data-name="${list.name}">Rename</a>
+                        <a href="#" class="menu-delete-list delete" data-id="${list.id}" data-name="${list.name}">Delete</a>
+                    </div>
+                </div>
+            </div>
+            <ul class="shopping-item-list">${itemsHTML}</ul>
+            <form class="add-item-form">
+                <input type="text" placeholder="Add item...">
+                <button type="submit">+</button>
+            </form>
+        `;
+    shoppingContent.appendChild(board);
+  });
+
+  // 3. Add the "Add New Board" button (This fixes the bug!)
+  const addBoardBtn = document.createElement("button");
+  addBoardBtn.id = "add-shopping-board-btn";
+  addBoardBtn.className = "add-btn"; // Use .add-btn for the SVG styles
+  addBoardBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+        </svg>
+    `;
+  addBoardBtn.title = "Add New Board";
+  addBoardBtn.onclick = handleAddShoppingBoard; // This now works!
+  shoppingContent.appendChild(addBoardBtn);
+
+  // 4. Add listeners for all the new board content
+  addShoppingListeners();
+}
+
+async function handleAddShoppingBoard() {
+  const boardName = prompt(
+    'Enter a name for your new board (e.g., "Food", "Freezer"):'
+  );
+  if (!boardName || boardName.trim() === "") return;
+
+  const placeId = document.getElementById("shopping-place-select").value;
+
+  const { error } = await supabaseClient.from("shopping_lists").insert({
+    name: boardName.trim(),
+    user_id: CURRENT_USER_ID,
+    place_id: placeId,
+  });
+
+  if (error) {
+    if (error.code === "23505")
+      alert("A board with this name already exists for this place.");
+    else alert("Error adding board: " + error.message);
+    return;
+  }
+
+  // Success! Re-render the shopping list view
+  await renderShoppingList();
+}
+
+/**
+ * Adds all event listeners for the rendered shopping boards.
+ */
+function addShoppingListeners() {
+  const shoppingContent = document.getElementById("shopping-content");
+
+  // 1. Board "..." menu toggles
+  shoppingContent.querySelectorAll(".action-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleActionMenu(`shop-list-${e.target.dataset.listId}`);
+    });
+  });
+  // 2. Rename board
+  shoppingContent.querySelectorAll(".menu-rename-list").forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleRenameShoppingBoard(e.target.dataset.id, e.target.dataset.name);
+      closeAllActionMenus();
+    });
+  });
+  // 3. Delete board
+  shoppingContent.querySelectorAll(".menu-delete-list").forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleDeleteShoppingBoard(e.target.dataset.id, e.target.dataset.name);
+      closeAllActionMenus();
+    });
+  });
+  // 4. Add item form
+  shoppingContent.querySelectorAll(".add-item-form").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const listId = form.closest(".shopping-board").dataset.listId;
+      const input = form.querySelector("input");
+      handleAddShoppingItem(listId, input);
+    });
+  });
+  // 5. Checkbox toggle
+  shoppingContent.querySelectorAll(".shopping-item-checkbox").forEach((cb) => {
+    cb.addEventListener("click", (e) => {
+      handleToggleShoppingItem(e.target.dataset.itemId, e.target.checked);
+    });
+  });
+  // 6. Delete item "X" button
+  shoppingContent.querySelectorAll(".delete-item-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      handleDeleteShoppingItem(e.target.dataset.itemId);
+    });
+  });
+}
+
+/**
+ * Renames a shopping list (board).
+ */
+async function handleRenameShoppingBoard(listId, oldName) {
+  const newName = prompt(`Rename board "${oldName}" to:`, oldName);
+  if (!newName || newName.trim() === "" || newName === oldName) return;
+
+  const { error } = await supabaseClient
+    .from("shopping_lists")
+    .update({ name: newName.trim() })
+    .eq("id", listId);
+
+  if (error) alert("Error renaming board: " + error.message);
+  else await renderShoppingList();
+}
+
+/**
+ * Deletes a shopping list (board) and all its items.
+ */
+async function handleDeleteShoppingBoard(listId, name) {
+  if (
+    !confirm(
+      `Are you sure you want to delete the "${name}" board?\nAll items on this list will be permanently deleted.`
+    )
+  )
+    return;
+
+  // Supabase is set to ON DELETE CASCADE, so this will
+  // automatically delete all 'shopping_items' on this list.
+  const { error } = await supabaseClient
+    .from("shopping_lists")
+    .delete()
+    .eq("id", listId);
+
+  if (error) alert("Error deleting board: " + error.message);
+  else await renderShoppingList();
+}
+
+/**
+ * Adds a new item (e.g., "Socks") to a board.
+ */
+async function handleAddShoppingItem(listId, inputElement) {
+  const name = inputElement.value.trim();
+  if (!name) return;
+
+  const { error } = await supabaseClient.from("shopping_items").insert({
+    name: name,
+    list_id: listId,
+    user_id: CURRENT_USER_ID,
+  });
+
+  if (error) alert("Error adding item: " + error.message);
+  else {
+    inputElement.value = ""; // Clear input
+    await renderShoppingList(); // Full re-render
+  }
+}
+
+/**
+ * Toggles the "is_taken" checkbox for a shopping item.
+ */
+async function handleToggleShoppingItem(itemId, isTaken) {
+  const { error } = await supabaseClient
+    .from("shopping_items")
+    .update({ is_taken: isTaken })
+    .eq("id", itemId);
+
+  if (error) alert("Error updating item: " + error.message);
+  else await renderShoppingList(); // Re-render to show sorting change
+}
+
+/**
+ * Deletes a single shopping item from a board.
+ */
+async function handleDeleteShoppingItem(itemId) {
+  if (!confirm("Delete this item?")) return;
+
+  const { error } = await supabaseClient
+    .from("shopping_items")
+    .delete()
+    .eq("id", itemId);
+
+  if (error) alert("Error deleting item: " + error.message);
+  else await renderShoppingList();
 }
 
 function updatePlaceDropdowns(places) {

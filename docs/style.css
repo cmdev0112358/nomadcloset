@@ -974,6 +974,160 @@ Packing List Button
 
 /*
 =================
+Mode Switcher 
+=================
+*/
+
+#mode-switcher {
+  display: flex;
+  width: 100%;
+  border-bottom: 2px solid #eee;
+  margin-bottom: 15px;
+}
+.mode-btn {
+  flex: 1; /* Each button takes 50% width */
+  padding: 12px 5px;
+  font-size: 1em;
+  font-weight: bold;
+  color: #aaa;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+.mode-btn.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+
+#shopping-sidebar-content select {
+  width: 100%;
+  padding: 8px;
+}
+
+/*
+========================
+Shopping List Boards 
+========================
+*/
+
+/* This is the main container for all boards */
+#shopping-content {
+  display: flex;
+  flex-wrap: wrap; /* Let them wrap to the next line */
+  align-items: flex-start;
+  gap: 20px; /* Space between boards */
+}
+
+/* Style for each individual board */
+.shopping-board {
+  width: 300px;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+.shopping-board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+}
+.shopping-board-header h3 {
+  margin: 0;
+}
+.shopping-board-header .action-btn {
+  /* We re-use the "..." button style */
+  background: #eee;
+  color: #888;
+}
+.shopping-board-header .action-btn:hover {
+  background: #ddd;
+}
+.shopping-board-header .action-menu {
+  top: 35px; /* Position menu */
+}
+
+/* The list of items inside a board */
+.shopping-item-list {
+  list-style: none;
+  padding: 10px;
+  min-height: 50px;
+}
+.shopping-item-list li {
+  display: flex;
+  align-items: center;
+  padding: 8px 5px;
+  border-bottom: 1px solid #eee;
+}
+.shopping-item-list li input[type="checkbox"] {
+  transform: scale(1.4);
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+.shopping-item-list li span {
+  flex-grow: 1;
+}
+.shopping-item-list li.taken span {
+  text-decoration: line-through;
+  color: #aaa;
+}
+.shopping-item-list li .delete-item-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 5px;
+  display: none; /* Hide by default */
+}
+.shopping-item-list li:hover .delete-item-btn {
+  display: block; /* Show "X" on hover */
+}
+.shopping-item-list li .delete-item-btn:hover {
+  color: #dc3545;
+}
+
+/* The "Add Item" form at the bottom of a board */
+.add-item-form {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #eee;
+}
+.add-item-form input {
+  flex-grow: 1;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 5px 0 0 5px;
+}
+.add-item-form button {
+  border-radius: 0 5px 5px 0;
+  border-left: none;
+  padding: 0 15px;
+}
+
+/* Style for the "Add Board" button */
+#add-shopping-board-btn {
+  width: 300px;
+  height: 100px;
+  border-radius: 8px;
+  background-color: #f0f0f0;
+  color: #888;
+  border: 2px dashed #ccc;
+  flex-shrink: 0; /* Keep it from shrinking */
+}
+#add-shopping-board-btn:hover {
+  background-color: #e9e9e9;
+  color: #333;
+}
+#add-shopping-board-btn svg {
+  width: 30px;
+  height: 30px;
+}
+/*
+=================
 Footer 
 =================
 */
@@ -1059,5 +1213,13 @@ Mobile Responsiveness
     font-size: 1.2em;
     flex: none;
     text-align: left; /* Keep title aligned left */
+  }
+
+  /* Make shopping boards stack on mobile */
+  .shopping-board {
+    width: 100%; /* Make boards full-width on mobile */
+  }
+  #add-shopping-board-btn {
+    width: 100%; /* Make 'add' button full-width on mobile */
   }
 }
