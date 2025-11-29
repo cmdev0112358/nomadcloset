@@ -8,8 +8,6 @@ let allPlacesCache = [];
 let allCategoriesCache = [];
 let selectedItems = [];
 let currentSearchQuery = "";
-let currentCategoryFilter = "all";
-let currentSortOrder = "categories(name)-asc";
 let allPackingListsCache = [];
 let currentMode = "inventory";
 
@@ -476,7 +474,6 @@ async function renderPlaces() {
       currentSearchQuery = "";
       document.getElementById("search-input").value = "";
       currentCategoryFilter = "all";
-      populateCategoryFilter();
 
       renderPlaces(); // Re-renders both lists to show "active" state
       renderItems(); // Render the correct view (inventory or checklist)
@@ -1068,19 +1065,6 @@ function populateCategoryDropdown() {
   });
 }
 
-function populateCategoryFilter() {
-  const select = document.getElementById("category-filter-select");
-  select.innerHTML = "";
-
-  select.innerHTML += `<option value="all">All Categories</option>`;
-
-  allCategoriesCache.forEach((category) => {
-    select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
-  });
-
-  select.value = currentCategoryFilter;
-}
-
 // --- Modal Handling ---
 function setupModals() {
   // Add/Item/Place modals
@@ -1244,7 +1228,6 @@ function setupModals() {
 
       // 3. Re-populate both dropdowns
       populateCategoryDropdown();
-      populateCategoryFilter();
 
       // 4. Auto-select the one we just created!
       document.getElementById("new-item-category").value = data.id;
