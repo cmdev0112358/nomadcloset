@@ -9,7 +9,7 @@ let allCategoriesCache = [];
 let selectedItems = [];
 let currentSearchQuery = "";
 let currentCategoryFilter = "all";
-let currentSortOrder = "name-asc";
+let currentSortOrder = "categories(name)-asc";
 let allPackingListsCache = [];
 let currentMode = "inventory";
 
@@ -179,6 +179,7 @@ async function initializeApp(user) {
   // --- Filter/Search Listeners ---
   const searchInput = document.getElementById("search-input");
   const clearSearchBtn = document.getElementById("clear-search-btn");
+  
   searchInput.addEventListener("input", (e) => {
     currentSearchQuery = e.target.value;
     if (currentSearchQuery.length > 0)
@@ -186,24 +187,12 @@ async function initializeApp(user) {
     else clearSearchBtn.classList.add("hidden");
     renderItems();
   });
+  
   clearSearchBtn.addEventListener("click", (e) => {
     currentSearchQuery = "";
     searchInput.value = "";
     clearSearchBtn.classList.add("hidden");
     renderItems();
-  });
-  populateCategoryFilter();
-  document
-    .getElementById("category-filter-select")
-    .addEventListener("change", (e) => {
-      currentCategoryFilter = e.target.value;
-      renderItems();
-    });
-
-  // Listener for the sort dropdown
-  document.getElementById("sort-select").addEventListener("change", (e) => {
-    currentSortOrder = e.target.value;
-    renderItems(); // Re-render the list with new sorting
   });
 
   // --- Bulk Action Listeners ---
@@ -255,7 +244,6 @@ async function initializeApp(user) {
 
   // --- RENDER THE APP ---
   await renderPlaces();
-  currentSortOrder = document.getElementById('sort-select').value;
   await renderItems();
 }
 
@@ -637,75 +625,53 @@ async function renderItems() {
     }
   } else {
     // ---- RENDER NORMAL INVENTORY MODE ----
+        
+        itemsHeader.classList.remove('hidden');
+        filterBar.classList.remove('hidden');
 
-    // 1. Show the normal headers and filters
-    itemsHeader.classList.remove("hidden");
-    filterBar.classList.remove("hidden");
+        // 1. Get items (They come sorted by Category from getItems because of our global var)
+        const items = await getItems();
+        
+        // 2. Filter by Place
+        let placeFilteredItems;
+        if (ACTIVE_PLACE_ID === 'all') placeFilteredItems = items;
+        else if (ACTIVE_PLACE_ID === 'null') placeFilteredItems = items.filter((item) => item.place_id === null);
+        else placeFilteredItems = items.filter((item) => item.place_id === ACTIVE_PLACE_ID);
 
-    // 2. Run all our existing filter logic
-    const items = await getItems();
-    let placeFilteredItems;
-    if (ACTIVE_PLACE_ID === "all") placeFilteredItems = items;
-    else if (ACTIVE_PLACE_ID === "null")
-      placeFilteredItems = items.filter((item) => item.place_id === null);
-    else
-      placeFilteredItems = items.filter(
-        (item) => item.place_id === ACTIVE_PLACE_ID
-      );
+        // 3. Filter by Search
+        let filteredItems = currentSearchQuery === "" 
+            ? placeFilteredItems 
+            : placeFilteredItems.filter((item) => item.name.toLowerCase().includes(currentSearchQuery.toLowerCase()));
 
-    const searchFilteredItems =
-      currentSearchQuery === ""
-        ? placeFilteredItems
-        : placeFilteredItems.filter((item) =>
-            item.name.toLowerCase().includes(currentSearchQuery.toLowerCase())
-          );
-    const filteredItems =
-      currentCategoryFilter === "all"
-        ? searchFilteredItems
-        : searchFilteredItems.filter(
-            (item) => item.category_id === currentCategoryFilter
-          );
+        // 4. Update header
+        updateBulkActionUI(filteredItems.length);
 
-    // 3. Update header
-    updateBulkActionUI(filteredItems.length);
-
-    // 4. Render the list
-    if (filteredItems.length === 0) {
-      ul.innerHTML = "<li>No items found in this place.</li>";
-      return;
-    }
-
-      // --- GROUPING LOGIC VARIABLES ---
-      let lastCategoryName = null;
-      // Check if we are sorting by category
-      const isGroupingEnabled = currentSortOrder.startsWith('categories');  
-
-    filteredItems.forEach((item) => {
-      const placeName = item.places ? item.places.name : getPlaceName(item.place_id, allPlacesCache);
-      const isSelected = selectedItems.includes(item.id);
-      const categoryName = item.categories ? item.categories.name : 'Uncategorized';
-        if (isGroupingEnabled) { 
-          if (categoryName !== lastCategoryName) {
-             ul.innerHTML += `<li class="group-header">${categoryName}</li>`;
-              lastCategoryName = categoryName;
-          }
+        if (filteredItems.length === 0) {
+            ul.innerHTML = '<li>No items found in this place.</li>';
+            return;
         }
 
-      ul.innerHTML += `
-                <li data-id="${item.id}" class="${
-        isSelected ? "item-selected" : ""
-      }">
+        // --- GROUPING LOGIC ---
+        // Since we removed the dropdown, we ALWAYS group.
+        let lastCategoryName = null;
+
+        filteredItems.forEach((item) => {
+            const placeName = item.places ? item.places.name : getPlaceName(item.place_id, allPlacesCache);
+            const isSelected = selectedItems.includes(item.id);
+            const categoryName = item.categories ? item.categories.name : 'Uncategorized';
+
+            // Insert Header if Category Changes
+            if (categoryName !== lastCategoryName) {
+                ul.innerHTML += `<li class="group-header">${categoryName}</li>`;
+                lastCategoryName = categoryName;
+            }
+
+            ul.innerHTML += `
+                <li data-id="${item.id}" class="${isSelected ? 'item-selected' : ''}">
                     <div class="item-info">
-                        <input type="checkbox" class="item-checkbox" data-id="${
-                          item.id
-                        }" ${isSelected ? "checked" : ""}>
+                        <input type="checkbox" class="item-checkbox" data-id="${item.id}" ${isSelected ? 'checked' : ''}>
                         <div> 
-                            <strong>${item.name} ${
-        item.quantity > 1 ? `(x${item.quantity})` : ""
-      }</strong> (${placeName})
-                            <span class="item-category">${
-                              item.categories ? item.categories.name : ""
-                            }</span>
+                            <strong>${item.name} ${item.quantity > 1 ? `(x${item.quantity})` : ''}</strong> (${placeName})
                         </div>
                     </div>
                     <div class="action-menu-wrapper">
@@ -718,9 +684,9 @@ async function renderItems() {
                     </div>
                 </li>
             `;
-    });
+        });
 
-    // 5. Add all listeners
+    // 5. listeners
     ul.querySelectorAll(".action-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
