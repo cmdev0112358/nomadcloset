@@ -353,24 +353,33 @@ async function getPackingLists() {
 }
 
 async function getItems() {
-  // 1. Deconstruct the sort order
-  // 'name-asc' becomes column 'name', ascending 'true'
-  const [column, order] = currentSortOrder.split("-");
-  const ascending = order === "asc";
+    // 1. Deconstruct the sort order (e.g. "categories(name)-asc")
+    let [column, order] = currentSortOrder.split('-');
+    const ascending = (order === 'asc');
 
-  // 2. Build the query
-  const { data, error } = await supabaseClient
-    .from("items")
-    .select("*, places(name), categories(name)")
-    .eq("user_id", CURRENT_USER_ID)
-    // 3. Add the .order() clause
-    .order(column, { ascending: ascending });
+    // 2. Start building the query
+    let query = supabaseClient
+        .from('items')
+        .select('*, places(name), categories(name)')
+        .eq('user_id', CURRENT_USER_ID);
 
-  if (error) {
-    console.error("Error fetching items:", error);
-    return [];
-  }
-  return data || [];
+    // 3. Apply the correct sort
+    if (column === 'categories(name)') {
+        // SPECIAL CASE: Sort by foreign table (Categories)
+        // We must specify the foreignTable explicitly
+        query = query.order('name', { foreignTable: 'categories', ascending: ascending });
+    } else {
+        // NORMAL CASE: Sort by columns on the items table
+        query = query.order(column, { ascending: ascending });
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Error fetching items:', error);
+        return [];
+    }
+    return data || [];
 }
 
 function getPlaceName(placeId, allPlaces) {
@@ -523,10 +532,10 @@ async function renderPlaces() {
 // --- renderItems FUNCTION ---
 
 async function renderItems() {
-  const ul = document.getElementById("items-list");
-  const itemsHeader = document.getElementById("items-header");
-  const filterBar = document.getElementById("filter-bar");
-  ul.innerHTML = ""; // Clear list
+    const ul = document.getElementById('items-list');
+    const itemsHeader = document.getElementById('items-header');
+    const filterBar = document.getElementById('filter-bar');
+    ul.innerHTML = ''; // Clear list
 
   // Check if we are in "Packing List Mode"
   if (ACTIVE_PLACE_ID.startsWith("list-")) {
@@ -664,11 +673,23 @@ async function renderItems() {
       ul.innerHTML = "<li>No items found in this place.</li>";
       return;
     }
+
+      // --- GROUPING LOGIC VARIABLES ---
+      let lastCategoryName = null;
+      // Check if we are sorting by category
+      const isGroupingEnabled = currentSortOrder.startsWith('categories');  
+
     filteredItems.forEach((item) => {
-      const placeName = item.places
-        ? item.places.name
-        : getPlaceName(item.place_id, allPlacesCache);
+      const placeName = item.places ? item.places.name : getPlaceName(item.place_id, allPlacesCache);
       const isSelected = selectedItems.includes(item.id);
+      const categoryName = item.categories ? item.categories.name : 'Uncategorized';
+        if (isGroupingEnabled) { 
+          if (categoryName !== lastCategoryName) {
+             ul.innerHTML += `<li class="group-header">${categoryName}</li>`;
+              lastCategoryName = categoryName;
+          }
+        }
+
       ul.innerHTML += `
                 <li data-id="${item.id}" class="${
         isSelected ? "item-selected" : ""
@@ -714,7 +735,7 @@ async function renderItems() {
       e.target.dataset.id,
       e.target.dataset.name,
       e.target.dataset.quantity,
-      e.target.dataset.categoryId // <--- THIS IS THE NEW PART
+      e.target.dataset.categoryId
       );
       closeAllActionMenus();
       });
@@ -749,19 +770,12 @@ async function renderItems() {
         handleItemSelection(itemId, filteredItems.length);
       });
     });
-    ul.querySelectorAll("li").forEach((li) => {
-      li.addEventListener("click", (e) => {
-        if (
-          e.target.matches("button") ||
-          e.target.matches("a") ||
-          e.target.matches(".item-checkbox") ||
-          e.target.closest(".action-menu-wrapper")
-        )
-          return;
-        const itemId = li.getAttribute("data-id");
-        handleItemSelection(itemId, filteredItems.length);
-      });
-    });
+    ul.querySelectorAll('li:not(.group-header)').forEach(li => { // Exclude headers from clicks
+            li.addEventListener('click', (e) => {
+                if (e.target.matches('button') || e.target.matches('a') || e.target.matches('.item-checkbox') || e.target.closest('.action-menu-wrapper')) return;
+                handleItemSelection(li.getAttribute('data-id'), filteredItems.length);
+            });
+        });
   }
 }
 

@@ -1126,6 +1126,32 @@ Shopping List Boards
   width: 30px;
   height: 30px;
 }
+
+/*
+=======================
+Category Group Headers
+=======================
+*/
+
+.group-header {
+  background-color: #f1f3f5;
+  color: #495057;
+  padding: 8px 15px;
+  font-weight: bold;
+  font-size: 0.9em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #ddd;
+  margin-top: 10px;
+  
+  /* Make sure it doesn't look like a clickable item */
+  pointer-events: none; 
+}
+
+/* Remove margin for the very first header */
+.group-header:first-child {
+  margin-top: 0;
+}
+
 /*
 =================
 Footer 
