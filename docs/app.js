@@ -340,27 +340,10 @@ async function getPackingLists() {
 }
 
 async function getItems() {
-    // 1. Deconstruct the sort order (e.g. "categories(name)-asc")
-    let [column, order] = currentSortOrder.split('-');
-    const ascending = (order === 'asc');
-
-    // 2. Start building the query
-    let query = supabaseClient
+    const { data, error } = await supabaseClient
         .from('items')
         .select('*, places(name), categories(name)')
         .eq('user_id', CURRENT_USER_ID);
-
-    // 3. Apply the correct sort
-    if (column === 'categories(name)') {
-        // SPECIAL CASE: Sort by foreign table (Categories)
-        // We must specify the foreignTable explicitly
-        query = query.order('name', { foreignTable: 'categories', ascending: ascending });
-    } else {
-        // NORMAL CASE: Sort by columns on the items table
-        query = query.order(column, { ascending: ascending });
-    }
-
-    const { data, error } = await query;
 
     if (error) {
         console.error('Error fetching items:', error);
@@ -473,7 +456,6 @@ async function renderPlaces() {
       // Clear filters
       currentSearchQuery = "";
       document.getElementById("search-input").value = "";
-      currentCategoryFilter = "all";
 
       renderPlaces(); // Re-renders both lists to show "active" state
       renderItems(); // Render the correct view (inventory or checklist)
