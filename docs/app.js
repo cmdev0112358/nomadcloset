@@ -255,6 +255,7 @@ async function initializeApp(user) {
 
   // --- RENDER THE APP ---
   await renderPlaces();
+  currentSortOrder = document.getElementById('sort-select').value;
   await renderItems();
 }
 
@@ -829,7 +830,15 @@ async function renderShoppingList() {
 
     // Create the item list HTML
     let itemsHTML = "";
-    list.shopping_items.sort((a, b) => a.is_taken - b.is_taken); // Show "taken" at bottom
+    // Sort: First by "Taken" (bottom), Then by Name (A-Z)
+    list.shopping_items.sort((a, b) => {
+        if (a.is_taken === b.is_taken) {
+            // If status is the same, sort alphabetically
+            return a.name.localeCompare(b.name);
+        }
+        // Otherwise, put taken items at the bottom
+        return a.is_taken - b.is_taken;
+    });
 
     list.shopping_items.forEach((item) => {
       itemsHTML += `
@@ -949,10 +958,11 @@ function addShoppingListeners() {
     });
   });
   // 5. Checkbox toggle
-  shoppingContent.querySelectorAll(".shopping-item-checkbox").forEach((cb) => {
-    cb.addEventListener("click", (e) => {
-      handleToggleShoppingItem(e.target.dataset.itemId, e.target.checked);
-    });
+    shoppingContent.querySelectorAll('.shopping-item-checkbox').forEach(cb => {
+        cb.addEventListener('click', e => {
+            // Pass 'e.target' (the checkbox itself) to the function
+            handleToggleShoppingItem(e.target.dataset.itemId, e.target.checked, e.target);
+        });
   });
   // 6. Delete item "X" button
   shoppingContent.querySelectorAll(".delete-item-btn").forEach((btn) => {
@@ -1021,16 +1031,36 @@ async function handleAddShoppingItem(listId, inputElement) {
 }
 
 /**
- * Toggles the "is_taken" checkbox for a shopping item.
+ * Toggles the "is_taken" checkbox instantly (Optimistic UI).
+ * It updates the style immediately and saves to DB in the background.
+ * It does NOT re-sort or re-render, keeping the list stable for fast clicking.
  */
-async function handleToggleShoppingItem(itemId, isTaken) {
-  const { error } = await supabaseClient
-    .from("shopping_items")
-    .update({ is_taken: isTaken })
-    .eq("id", itemId);
+async function handleToggleShoppingItem(itemId, isTaken, checkboxElement) {
+    // 1. Visual Update (Instant)
+    // Find the <li> parent of this checkbox
+    const li = checkboxElement.closest('li');
+    if (isTaken) {
+        li.classList.add('taken');
+    } else {
+        li.classList.remove('taken');
+    }
 
-  if (error) alert("Error updating item: " + error.message);
-  else await renderShoppingList(); // Re-render to show sorting change
+    // 2. Database Update (Background)
+    // We do NOT await this, so the user can keep clicking other things
+    const { error } = await supabaseClient
+        .from('shopping_items')
+        .update({ is_taken: isTaken })
+        .eq('id', itemId);
+    
+    if (error) {
+        // If save fails, alert the user and revert the check
+        alert('Error saving item: ' + error.message);
+        checkboxElement.checked = !isTaken; // Undo check
+        if (!isTaken) li.classList.add('taken'); else li.classList.remove('taken'); // Undo style
+    }
+    
+    // We do NOT call renderShoppingList() here. 
+    // The items will re-sort only when you refresh or re-open the page.
 }
 
 /**
@@ -1620,7 +1650,7 @@ async function exportActionsToCSV() {
   logAction("export_csv", { metadata: { rows: actions.length } });
 }
 
-// --- App Initialization (NEW) ---
+// --- App Initialization ---
 document.addEventListener("DOMContentLoaded", () => {
   // 1. Check if the user is logged in
   // This is the most important step
