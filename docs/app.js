@@ -687,23 +687,11 @@ async function renderItems() {
                         </div>
                     </div>
                     <div class="action-menu-wrapper">
-                        <button class="action-btn" data-item-id="${
-                          item.id
-                        }">⋮</button>
+                        <button class="action-btn" data-item-id="${item.id}">⋮</button>
                         <div class="action-menu" id="menu-${item.id}">
-                            <a href="#" class="menu-modify" data-id="${
-                              item.id
-                            }" data-name="${item.name}" data-quantity="${
-        item.quantity
-      }">Modify</a>
-                            <a href="#" class="menu-move" data-id="${
-                              item.id
-                            }" data-name="${item.name}" data-from-id="${
-        item.place_id
-      }">Move</a>
-                            <a href="#" class="menu-delete delete" data-id="${
-                              item.id
-                            }" data-name="${item.name}">Delete</a>
+                            <a href="#" class="menu-modify" data-id="${item.id}" data-name="${item.name}" data-quantity="${item.quantity}" data-category-id="${item.category_id}">Modify</a>
+                            <a href="#" class="menu-move" data-id="${item.id}" data-name="${item.name}" data-from-id="${item.place_id}">Move</a>
+                            <a href="#" class="menu-delete delete" data-id="${item.id}" data-name="${item.name}">Delete</a>
                         </div>
                     </div>
                 </li>
@@ -720,14 +708,15 @@ async function renderItems() {
     });
     ul.querySelectorAll(".menu-modify").forEach((link) => {
       link.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openModifyModal(
-          e.target.dataset.id,
-          e.target.dataset.name,
-          e.target.dataset.quantity
-        );
-        closeAllActionMenus();
+      e.preventDefault();
+      e.stopPropagation();
+      openModifyModal( 
+      e.target.dataset.id,
+      e.target.dataset.name,
+      e.target.dataset.quantity,
+      e.target.dataset.categoryId // <--- THIS IS THE NEW PART
+      );
+      closeAllActionMenus();
       });
     });
     ul.querySelectorAll(".menu-move").forEach((link) => {
@@ -1188,23 +1177,20 @@ function setupModals() {
   };
 
   // Use new button ID
-  document.getElementById("save-modify-btn").onclick = async () => {
-    // Use new input IDs
-    const itemId = document.getElementById("modify-item-id").value;
-    const newName = document.getElementById("modify-item-name-new").value;
-    const newQuantity =
-      parseInt(document.getElementById("modify-item-quantity").value) || 1;
+  document.getElementById('save-modify-btn').onclick = async () => {
+        const itemId = document.getElementById('modify-item-id').value;
+        const newName = document.getElementById('modify-item-name-new').value;
+        const newQuantity = parseInt(document.getElementById('modify-item-quantity').value) || 1;
+        // Get the category ID
+        const newCategoryId = document.getElementById('modify-item-category').value;
 
-    if (!newName) {
-      alert("Please enter a new name.");
-      return;
-    }
-
-    // Call our handler function
-    await handleModifyItem(itemId, newName, newQuantity);
-
-    document.getElementById("modify-item-modal").style.display = "none";
-  };
+        if (!newName) { alert('Please enter a new name.'); return; }
+        
+        // Pass the category to the handler
+        await handleModifyItem(itemId, newName, newQuantity, newCategoryId);
+        
+        document.getElementById('modify-item-modal').style.display = 'none';
+    };
 
   // Bulk Move modal
   document.getElementById("save-bulk-move-btn").onclick = () => {
@@ -1271,26 +1257,29 @@ function closeAllActionMenus() {
 }
 
 // --- Single Item Action Handlers ---
-async function handleModifyItem(itemId, newName, newQuantity) {
-  console.log(`Modifying item ${itemId} to: ${newName} (x${newQuantity})`);
+async function handleModifyItem(itemId, newName, newQuantity, newCategoryId) {
+    console.log(`Modifying item ${itemId} to: ${newName} (x${newQuantity}), Cat: ${newCategoryId}`);
+    
+    const { error } = await supabaseClient
+        .from('items')
+        .update({ 
+            name: newName, 
+            quantity: newQuantity,
+            category_id: newCategoryId //Update category
+        }) 
+        .eq('id', itemId);
 
-  const { error } = await supabaseClient
-    .from("items")
-    .update({ name: newName, quantity: newQuantity })
-    .eq("id", itemId);
-
-  if (error) {
-    console.error("Error modifying item:", error);
-    alert("Error modifying item: " + error.message);
-    return;
-  }
-  // Log it as 'modify_item'
-  logAction("modify_item", {
-    item_id: itemId,
-    item_name: newName,
-    metadata: { note: `Item modified` },
-  });
-  await renderItems();
+    if (error) {
+        console.error('Error modifying item:', error);
+        alert('Error modifying item: ' + error.message);
+        return;
+    }
+    logAction('modify_item', {
+        item_id: itemId,
+        item_name: newName,
+        metadata: { "note": `Item updated` } 
+    });
+    await renderItems();
 }
 
 //
@@ -1421,15 +1410,26 @@ function openMoveModal(id, name, fromId) {
   document.getElementById("move-item-modal").style.display = "block";
 }
 
-// Renamed function
-function openModifyModal(id, currentName, currentQuantity) {
-  document.getElementById("modify-item-id").value = id;
-  document.getElementById("modify-item-name-old").innerText = currentName;
-  document.getElementById("modify-item-name-new").value = currentName;
-  document.getElementById("modify-item-quantity").value = currentQuantity || 1;
+function openModifyModal(id, currentName, currentQuantity, currentCategoryId) {
+    document.getElementById('modify-item-id').value = id;
+    document.getElementById('modify-item-name-old').innerText = currentName;
+    document.getElementById('modify-item-name-new').value = currentName;
+    document.getElementById('modify-item-quantity').value = currentQuantity || 1; 
+    
+    // Populate the category dropdown
+    const select = document.getElementById('modify-item-category');
+    select.innerHTML = ''; 
+    allCategoriesCache.forEach(category => {
+        select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+    });
 
-  document.getElementById("modify-item-modal").style.display = "block";
-  document.getElementById("modify-item-name-new").focus();
+    // Pre-select the current category
+    if (currentCategoryId) {
+        select.value = currentCategoryId;
+    }
+
+    document.getElementById('modify-item-modal').style.display = 'block';
+    document.getElementById('modify-item-name-new').focus();
 }
 
 // --- Bulk Action Handlers ---

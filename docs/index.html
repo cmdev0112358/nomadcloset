@@ -202,18 +202,17 @@
     </div>
     <div id="modify-item-modal" class="modal">
       <div class="modal-content">
-        <span class="close-btn">&times;</span>
-        <h3>Modify Item</h3>
-        <p>Modify <strong id="modify-item-name-old">...</strong>:</p>
-        <input
-          type="text"
-          id="modify-item-name-new"
-          placeholder="New item name"
-        />
-        <input type="number" id="modify-item-quantity" value="1" min="1" />
-        <button id="save-modify-btn">Save Changes</button>
-        <input type="hidden" id="modify-item-id" />
-      </div>
+            <span class="close-btn">&times;</span>
+            <h3>Modify Item</h3>
+            <p>Modify <strong id="modify-item-name-old">...</strong>:</p>
+            <input type="text" id="modify-item-name-new" placeholder="New item name">
+            
+            <select id="modify-item-category"></select>
+            
+            <input type="number" id="modify-item-quantity" value="1" min="1">
+            <button id="save-modify-btn">Save Changes</button>
+            <input type="hidden" id="modify-item-id">
+        </div>
     </div>
     <div id="bulk-move-modal" class="modal">
       <div class="modal-content">
