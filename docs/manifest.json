@@ -1,0 +1,16 @@
+{
+  "name": "NomadCloset",
+  "short_name": "NomadCloset",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#333333",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "media/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
