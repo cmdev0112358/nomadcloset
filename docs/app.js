@@ -622,6 +622,21 @@ async function renderItems() {
             ? placeFilteredItems 
             : placeFilteredItems.filter((item) => item.name.toLowerCase().includes(currentSearchQuery.toLowerCase()));
 
+        // This ensures all items of the same category are grouped together, preventing the "Duplicate Header" bug.
+        filteredItems.sort((a, b) => {
+            const catA = a.categories ? a.categories.name : 'Uncategorized';
+            const catB = b.categories ? b.categories.name : 'Uncategorized';
+            
+            // Primary Sort: Category Name (A-Z)
+            if (catA !== catB) {
+                return catA.localeCompare(catB);
+            }
+            
+            // Secondary Sort: Item Name (A-Z)
+            return a.name.localeCompare(b.name);
+        });    
+
+
         // 4. Update header
         updateBulkActionUI(filteredItems.length);
 
