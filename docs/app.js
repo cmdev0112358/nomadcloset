@@ -1408,12 +1408,31 @@ function openModifyModal(id, currentName, currentQuantity, currentCategoryId) {
 }
 
 // --- Bulk Action Handlers ---
-function handleItemSelection(itemId, totalItems) {
-  const index = selectedItems.indexOf(itemId);
-  if (index > -1) selectedItems.splice(index, 1);
-  else selectedItems.push(itemId);
-  renderItems();
-  updateBulkActionUI(totalItems);
+function handleItemSelection(itemId, totalItemsCount) {
+    // Update the Data (Add or Remove form array)
+    if (selectedItems.includes(itemId)) {
+        selectedItems = selectedItems.filter(id => id !== itemId);
+    } else {
+        selectedItems.push(itemId);
+    }
+
+    // Update the UI Visually (Optimistic)
+    // Find the specific row (li) and checkbox to update styles
+    const li = document.querySelector(`li[data-id="${itemId}"]`);
+    const checkbox = document.querySelector(`.item-checkbox[data-id="${itemId}"]`);
+    
+    if (li && checkbox) {
+        if (selectedItems.includes(itemId)) {
+            li.classList.add('item-selected');
+            checkbox.checked = true;
+        } else {
+            li.classList.remove('item-selected');
+            checkbox.checked = false;
+        }
+    }
+
+    // Update the Header (Bulk Action Bar) ONLY
+      updateBulkActionUI(totalItemsCount);
 }
 
 function updateBulkActionUI(totalItems = 0) {
