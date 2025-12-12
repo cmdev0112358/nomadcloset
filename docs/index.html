@@ -72,44 +72,24 @@
       <section class="main-content" id="items-container">
         <div id="inventory-content">
           <div id="items-header">
-            <div id="items-header-left">
-              <input
-                type="checkbox"
-                id="select-all-checkbox"
-                title="Select All"
-              />
-              <h2 id="items-header-title">Items</h2>
-              <span id="bulk-selected-count" class="hidden"
-                >0 items selected</span
-              >
-            </div>
-            <div id="items-header-right">
-              <button id="add-item-btn" class="add-btn" title="Add New Item">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  width="24px"
-                  height="24px"
-                >
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
-              </button>
-              <div
-                class="action-menu-wrapper hidden"
-                id="bulk-action-menu-wrapper"
-              >
-                <button class="action-btn" id="bulk-action-btn">⋮</button>
-                <div class="action-menu" id="bulk-action-menu">
-                  <a href="#" id="bulk-menu-move">Move Selected</a>
-                  <a href="#" id="bulk-menu-delete" class="delete"
-                    >Delete Selected</a
-                  >
+                <div class="header-left" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="select-all-checkbox" class="item-checkbox" title="Select All">
+                    <h1 id="bulk-action-label" style="margin: 0;">Items</h1>
                 </div>
-              </div>
+                <div class="header-right" style="display: flex; align-items: center; gap: 10px;">
+                    <button id="add-item-btn" class="add-btn" title="Add Item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    </button>
+                    
+                    <div class="action-menu-wrapper">
+                        <button id="bulk-action-btn" class="action-btn" style="display: none;">⋮</button>
+                        <div class="action-menu" id="bulk-action-menu">
+                            <a href="#" id="bulk-menu-move">Move Selected</a>
+                            <a href="#" id="bulk-menu-delete" class="delete">Delete Selected</a>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-
           <div id="filter-bar">
             <div id="search-input-wrapper">
               <input type="text" id="search-input" placeholder="Search items...">

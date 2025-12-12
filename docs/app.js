@@ -1450,48 +1450,70 @@ function handleItemSelection(itemId, totalItemsCount) {
       updateBulkActionUI(totalItemsCount);
 }
 
-function updateBulkActionUI(totalItems = 0) {
-  const bulkMenu = document.getElementById("bulk-action-menu-wrapper");
-  const titleHeader = document.getElementById("items-header-title");
-  const countSpan = document.getElementById("bulk-selected-count");
-  const selectAllCheckbox = document.getElementById("select-all-checkbox");
-  const addItemBtn = document.getElementById("add-item-btn");
+// --- updateBulkActionUI ---
+function updateBulkActionUI(totalVisibleItems) {
+    const bulkHeader = document.getElementById('items-header');
+    const actionLabel = document.getElementById('bulk-action-label');
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    
+    // Get BOTH buttons
+    const bulkBtn = document.getElementById('bulk-action-btn');
+    const addBtn = document.getElementById('add-item-btn'); 
 
-  if (selectedItems.length > 0) {
-    // ---- Show the Bulk UI ----
-    titleHeader.classList.add("hidden");
-    countSpan.classList.remove("hidden");
-    bulkMenu.classList.remove("hidden");
-    addItemBtn.classList.add("hidden"); // Hide the "+" button
+    // Safety check
+    if (!actionLabel || !bulkBtn || !addBtn) return;
 
-    countSpan.innerText = `${selectedItems.length} selected`;
-    selectAllCheckbox.checked = selectedItems.length === totalItems;
-  } else {
-    // ---- Show the Normal Header ----
-    titleHeader.classList.remove("hidden");
-    countSpan.classList.add("hidden");
-    bulkMenu.classList.add("hidden");
-    addItemBtn.classList.remove("hidden"); // Show the "+" button
+    if (selectedItems.length > 0) {
+        // --- BULK MODE ACTIVE ---
+        bulkHeader.classList.add('bulk-active');
+        actionLabel.innerHTML = `<strong>${selectedItems.length}</strong> Selected`;
+        
+        // SWAP BUTTONS: Show dots, Hide plus
+        bulkBtn.style.display = 'block'; 
+        addBtn.style.display = 'none';   
 
-    selectAllCheckbox.checked = false;
-  }
+        // Checkbox Logic
+        if (totalVisibleItems > 0 && selectedItems.length >= totalVisibleItems) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+
+    } else {
+        // --- NORMAL MODE ---
+        bulkHeader.classList.remove('bulk-active');
+        actionLabel.innerHTML = 'Items';
+        
+        // SWAP BUTTONS: Hide dots, Show plus
+        bulkBtn.style.display = 'none';
+        addBtn.style.display = ''; // Removes inline style so CSS takes over (usually flex)
+
+        // Reset Checkbox
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
 }
 
-async function handleSelectAll() {
-  const selectAllCheckbox = document.getElementById("select-all-checkbox");
-  const allItemNodes = document.querySelectorAll("#items-list li");
+function handleSelectAll(e) {
+    const isChecked = e.target.checked;
+    
+    if (isChecked) {
+        // Select ALL currently visible items
+        const allVisibleCheckboxes = document.querySelectorAll('.item-checkbox');
+        
+        selectedItems = Array.from(allVisibleCheckboxes)
+            .map(cb => cb.dataset.id)
+            // FILTER OUT GARBAGE (The fix):
+            .filter(id => id && id !== 'null' && id !== 'undefined');
+            
+    } else {
+        selectedItems = [];
+    }
 
-  if (selectAllCheckbox.checked) {
-    const allItemIds = [];
-    allItemNodes.forEach((li) => {
-      allItemIds.push(li.getAttribute("data-id"));
-    });
-    selectedItems = allItemIds;
-  } else {
-    selectedItems = [];
-  }
-  renderItems();
-  updateBulkActionUI(allItemNodes.length);
+    // Re-render to update the UI
+    renderItems();
 }
 
 async function handleBulkMove() {
@@ -1510,40 +1532,50 @@ async function handleBulkMove() {
   document.getElementById("bulk-move-modal").style.display = "block";
 }
 
-// --- handleSaveBulkMove ---
+//--- handleSaveBulkMove ---
 async function handleSaveBulkMove(toPlaceId) {
-  if (!toPlaceId) {
-    alert("Could not find a place to move to.");
-    return;
-  }
+    // 1. Convert string "null" (from Unassigned) to real null
+    if (toPlaceId === 'null') toPlaceId = null;
 
-  console.log(`Bulk moving ${selectedItems.length} items to ${toPlaceId}`);
+    if (!toPlaceId && toPlaceId !== null) {
+        alert("Could not find a place to move to.");
+        return;
+    }
 
-  // 1. Update all items
-  const { error } = await supabaseClient
-    .from("items")
-    .update({ place_id: toPlaceId })
-    .in("id", selectedItems);
+    // 2. FILTER THE ITEMS (Crucial Fix)
+    // This strips out the bad "null" ID that is causing your error
+    const validItemIds = selectedItems.filter(id => id && id !== 'null' && id !== 'undefined');
 
-  if (error) {
-    console.error("Error bulk moving items:", error);
-    alert("Error moving items: " + error.message);
-    return;
-  }
+    if (validItemIds.length === 0) {
+        alert("No valid items selected.");
+        return;
+    }
 
-  // 2. Log this as one action
-  logAction("bulk_move_items", {
-    to_place_id: toPlaceId,
-    metadata: { item_count: selectedItems.length, item_ids: selectedItems },
-  });
+    console.log(`Bulk moving ${validItemIds.length} items to ${toPlaceId}`);
 
-  // 3. Close modal
-  document.getElementById("bulk-move-modal").style.display = "none";
+    // 3. Update Database (Use validItemIds!)
+    const { error } = await supabaseClient
+        .from('items')
+        .update({ place_id: toPlaceId }) 
+        .in('id', validItemIds); // <--- MUST USE validItemIds
 
-  // 4. Clear selection and re-render
-  selectedItems = [];
-  renderItems();
-  updateBulkActionUI();
+    if (error) {
+        console.error('Error bulk moving items:', error);
+        alert('Error moving items: ' + error.message);
+        return;
+    }
+
+    // 4. Log Action
+    logAction('bulk_move_items', {
+        to_place_id: toPlaceId,
+        metadata: { item_count: validItemIds.length, item_ids: validItemIds }
+    });
+    
+    // 5. Cleanup
+    document.getElementById('bulk-move-modal').style.display = 'none';
+    selectedItems = [];
+    renderItems();      
+    updateBulkActionUI(0); 
 }
 
 async function handleBulkDelete() {
