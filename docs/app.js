@@ -672,7 +672,7 @@ async function renderItems() {
                         <button class="action-btn" data-item-id="${item.id}">⋮</button>
                         <div class="action-menu" id="menu-${item.id}">
                             <a href="#" class="menu-modify" data-id="${item.id}" data-name="${item.name}" data-quantity="${item.quantity}" data-category-id="${item.category_id}">Modify</a>
-                            <a href="#" class="menu-move" data-id="${item.id}" data-name="${item.name}" data-from-id="${item.place_id}">Move</a>
+                            <a href="#" class="menu-move" data-id="${item.id}" data-name="${item.name}" data-quantity="${item.quantity}" data-from-id="${item.place_id}">Move</a>
                             <a href="#" class="menu-delete delete" data-id="${item.id}" data-name="${item.name}">Delete</a>
                         </div>
                     </div>
@@ -701,18 +701,18 @@ async function renderItems() {
       closeAllActionMenus();
       });
     });
-    ul.querySelectorAll(".menu-move").forEach((link) => {
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openMoveModal(
-          e.target.dataset.id,
-          e.target.dataset.name,
-          e.target.dataset.fromId
-        );
-        closeAllActionMenus();
-      });
-    });
+    ul.querySelectorAll('.menu-move').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                openMoveModal(
+                    e.target.dataset.id, 
+                    e.target.dataset.name, 
+                    e.target.dataset.fromId, 
+                    e.target.dataset.quantity // <--- ADD THIS
+                );
+                closeAllActionMenus();
+            });
+        });
     ul.querySelectorAll(".menu-delete").forEach((link) => {
       link.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1038,19 +1038,25 @@ async function handleDeleteShoppingItem(itemId) {
   else await renderShoppingList();
 }
 
+// --- updatePlaceDropdowns ---
 function updatePlaceDropdowns(places) {
-  if (!places) places = allPlacesCache;
-  const selects = [
-    document.getElementById("new-item-place"),
-    document.getElementById("move-item-place"),
-  ];
+    const populate = (id, includeAllOption = false) => {
+        const select = document.getElementById(id);
+        if (!select) return; // Silent fail if missing (prevents crash)
 
-  selects.forEach((select) => {
-    select.innerHTML = "";
-    places.forEach((place) => {
-      select.innerHTML += `<option value="${place.id}">${place.name}</option>`;
-    });
-  });
+        select.innerHTML = '';
+        if (includeAllOption) select.innerHTML += '<option value="">-- Select Place --</option>';
+        
+        places.forEach(place => {
+            const isLuggage = place.is_luggage === true ? '🧳 ' : '';
+            select.innerHTML += `<option value="${place.id}">${isLuggage}${place.name}</option>`;
+        });
+    };
+
+    populate('new-item-place');
+    populate('move-item-select');
+    populate('shopping-place-select', true);
+    populate('bulk-move-select'); 
 }
 
 function populateCategoryDropdown() {
@@ -1063,172 +1069,107 @@ function populateCategoryDropdown() {
 }
 
 // --- Modal Handling ---
+// --- PASTE OVER setupModals ---
 function setupModals() {
-  // Add/Item/Place modals
-  const addPlaceModal = document.getElementById("add-place-modal");
-  document.getElementById("add-place-btn").onclick = () => {
-    addPlaceModal.style.display = "block";
-    document.getElementById("new-place-name").focus();
-  };
-  document.getElementById("save-place-btn").onclick = handleAddPlace;
+    console.log("Setting up modals...");
 
-  const addItemModal = document.getElementById("add-item-modal");
-  document.getElementById("add-item-btn").onclick = () => {
-    populateCategoryDropdown();
-
-    // THIS IS THE NEW LOGIC
-    const placeDropdown = document.getElementById("new-item-place");
-
-    if (ACTIVE_PLACE_ID === "all" || ACTIVE_PLACE_ID === "null") {
-      // If we're in "All Items" or "Unassigned", just select the first real place
-      placeDropdown.selectedIndex = 0;
-    } else {
-      // If we are in a specific place, find it and select it!
-      placeDropdown.value = ACTIVE_PLACE_ID;
-    }
-
-    addItemModal.style.display = "block";
-    document.getElementById("new-item-name").focus();
-  };
-
-  document.getElementById("save-item-btn").onclick = async () => {
-    const name = document.getElementById("new-item-name").value;
-    const quantity =
-      parseInt(document.getElementById("new-item-quantity").value) || 1;
-    const category_id = document.getElementById("new-item-category").value;
-    const place_id = document.getElementById("new-item-place").value;
-    if (!name || !place_id) return alert("Name and place are required.");
-
-    const newItem = {
-      name: name,
-      quantity: quantity,
-      category_id: category_id,
-      place_id: place_id,
-      user_id: CURRENT_USER_ID,
-    };
-    const { data, error } = await supabaseClient
-      .from("items")
-      .insert(newItem)
-      .select();
-
-    if (error) {
-      alert("Error creating item: " + error.message);
-      return;
-    }
-
-    logAction("create_item", {
-      item_id: data[0].id,
-      item_name: data[0].name,
-      place_id: data[0].place_id,
-    });
-
-    document.getElementById("new-item-name").value = "";
-    addItemModal.style.display = "none";
-    renderItems();
-  };
-
-  // Rename/Move modals
-  document.getElementById("save-move-btn").onclick = async () => {
-    const itemId = document.getElementById("move-item-id").value;
-    const toPlaceId = document.getElementById("move-item-place").value;
-
-    const { data: itemData, error: findError } = await supabaseClient
-      .from("items")
-      .select("name, place_id")
-      .eq("id", itemId)
-      .single();
-
-    if (findError) return alert("Item not found.");
-
-    const fromPlaceId = itemData.place_id;
-    if (fromPlaceId === toPlaceId) {
-      document.getElementById("move-item-modal").style.display = "none";
-      return;
-    }
-
-    const { error } = await supabaseClient
-      .from("items")
-      .update({ place_id: toPlaceId })
-      .eq("id", itemId);
-
-    if (error) {
-      alert("Error moving item: " + error.message);
-      return;
-    }
-
-    logAction("move_item", {
-      item_id: itemId,
-      item_name: itemData.name,
-      from_place_id: fromPlaceId,
-      to_place_id: toPlaceId,
-    });
-
-    document.getElementById("move-item-modal").style.display = "none";
-    renderItems();
-  };
-
-  // Use new button ID
-  document.getElementById('save-modify-btn').onclick = async () => {
-        const itemId = document.getElementById('modify-item-id').value;
-        const newName = document.getElementById('modify-item-name-new').value;
-        const newQuantity = parseInt(document.getElementById('modify-item-quantity').value) || 1;
-        // Get the category ID
-        const newCategoryId = document.getElementById('modify-item-category').value;
-
-        if (!newName) { alert('Please enter a new name.'); return; }
-        
-        // Pass the category to the handler
-        await handleModifyItem(itemId, newName, newQuantity, newCategoryId);
-        
-        document.getElementById('modify-item-modal').style.display = 'none';
-    };
-
-  // Bulk Move modal
-  document.getElementById("save-bulk-move-btn").onclick = () => {
-    const toPlaceId = document.getElementById("bulk-move-place-select").value;
-    handleSaveBulkMove(toPlaceId); // Pass the ID as an argument
-  };
-
-  // Generic close buttons
-  document.querySelectorAll(".modal .close-btn").forEach((btn) => {
-    btn.onclick = () => {
-      btn.closest(".modal").style.display = "none";
-    };
-  });
-
-  // Listener for the "Quick Add Category" button
-  document
-    .getElementById("add-category-quick-btn")
-    .addEventListener("click", async () => {
-      const newName = prompt("Enter a new category name:");
-      if (!newName || newName.trim() === "") return;
-
-      // 1. Add it to the database
-      const { data, error } = await supabaseClient
-        .from("categories")
-        .insert({ name: newName.trim(), user_id: CURRENT_USER_ID })
-        .select()
-        .single(); // Get the new category back
-
-      if (error) {
-        if (error.code === "23505") {
-          alert("A category with this name already exists.");
+    // Helper to safely attach listeners (Prevents crashes if ID is missing)
+    function attachListener(id, handler) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.onclick = handler;
         } else {
-          // THIS IS THE CORRECTED LINE:
-          alert("Error adding category: " + error.message);
+            console.warn(`Warning: Could not find button with ID "${id}"`);
         }
-        return;
-      }
+    }
 
-      // 2. Refresh our category cache
-      await getCategories();
-
-      // 3. Re-populate both dropdowns
-      populateCategoryDropdown();
-
-      // 4. Auto-select the one we just created!
-      document.getElementById("new-item-category").value = data.id;
+    // 1. ADD PLACE
+    const addPlaceModal = document.getElementById('add-place-modal');
+    attachListener('add-place-btn', () => {
+        addPlaceModal.style.display = 'block';
+        document.getElementById('new-place-name').focus();
     });
+    attachListener('save-place-btn', handleAddPlace);
+
+    // 2. ADD ITEM
+    const addItemModal = document.getElementById('add-item-modal');
+    attachListener('add-item-btn', () => {
+        populateCategoryDropdown(); 
+        const placeDropdown = document.getElementById('new-item-place');
+        if (ACTIVE_PLACE_ID && ACTIVE_PLACE_ID !== 'all' && ACTIVE_PLACE_ID !== 'null') {
+            placeDropdown.value = ACTIVE_PLACE_ID;
+        } else {
+            placeDropdown.selectedIndex = 0;
+        }
+        addItemModal.style.display = 'block';
+        document.getElementById('new-item-name').focus();
+    });
+    attachListener('save-item-btn', async () => {
+        const name = document.getElementById('new-item-name').value;
+        const quantity = parseInt(document.getElementById('new-item-quantity').value) || 1;
+        const category_id = document.getElementById('new-item-category').value;
+        const place_id = document.getElementById('new-item-place').value;
+        
+        if (!name || !place_id) return alert('Name and place are required.');
+
+        const { data, error } = await supabaseClient
+            .from('items')
+            .insert({ name, quantity, category_id, place_id, user_id: CURRENT_USER_ID })
+            .select();
+
+        if (error) { alert('Error: ' + error.message); return; }
+
+        logAction('create_item', { item_id: data[0].id, item_name: data[0].name, place_id: data[0].place_id });
+        document.getElementById('new-item-name').value = '';
+        addItemModal.style.display = 'none';
+        renderItems();
+    });
+
+    // 3. MOVE ITEM (Single)
+    attachListener('confirm-move-btn', async () => {
+        const itemId = document.getElementById('move-item-id').value;
+        const newPlaceId = document.getElementById('move-item-select').value;
+        await handleMoveItem(itemId, newPlaceId);
+    });
+
+    // 4. MODIFY ITEM (This was missing!)
+    attachListener('save-modify-btn', async () => {
+        const id = document.getElementById('modify-item-id').value;
+        const name = document.getElementById('modify-item-name').value;
+        const quantity = parseInt(document.getElementById('modify-item-quantity').value);
+        const category_id = document.getElementById('modify-item-category').value;
+
+        if (!name) return alert('Name is required');
+
+        const { error } = await supabaseClient
+            .from('items')
+            .update({ name, quantity, category_id })
+            .eq('id', id);
+
+        if (error) { alert('Error: ' + error.message); return; }
+
+        document.getElementById('modify-item-modal').style.display = 'none';
+        renderItems();
+    });
+
+    // 5. BULK MOVE (This was missing!)
+    attachListener('save-bulk-move-btn', async () => {
+        const toPlaceId = document.getElementById('bulk-move-select').value;
+        await handleSaveBulkMove(toPlaceId);
+    });
+
+    // --- GENERIC CLOSE LOGIC ---
+    document.querySelectorAll('.close-btn').forEach(btn => {
+        btn.onclick = function() {
+            this.closest('.modal').style.display = 'none';
+        }
+    });
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
+        }
+    }
 }
 
 // --- Action Menu Functions ---
@@ -1269,6 +1210,103 @@ async function handleModifyItem(itemId, newName, newQuantity, newCategoryId) {
         item_name: newName,
         metadata: { "note": `Item updated` } 
     });
+    await renderItems();
+}
+
+
+// --- handleMoveItem ---
+
+async function handleMoveItem(itemId, newPlaceId) {
+    const moveQty = parseInt(document.getElementById('move-item-quantity').value);
+    const totalQty = parseInt(document.getElementById('move-item-total-qty').value);
+    
+    // Fix "null" string
+    if (newPlaceId === 'null') newPlaceId = null;
+
+    if (!newPlaceId && newPlaceId !== null) {
+        alert("Please select a valid place.");
+        return;
+    }
+
+    console.log(`Moving ${moveQty} of ${totalQty} items to ${newPlaceId}`);
+
+    // A. Get the Original Item Details
+    const { data: sourceItem, error: fetchError } = await supabaseClient
+        .from('items')
+        .select('*')
+        .eq('id', itemId)
+        .single();
+        
+    if (fetchError) { alert('Error fetching item details.'); return; }
+
+    // B. Check if an IDENTICAL item already exists in the destination
+    // (Same Name + Same Category + Target Place)
+    let query = supabaseClient
+        .from('items')
+        .select('*')
+        .eq('name', sourceItem.name)
+        .eq('category_id', sourceItem.category_id);
+
+    if (newPlaceId === null) {
+        query = query.is('place_id', null);
+    } else {
+        query = query.eq('place_id', newPlaceId);
+    }
+
+    const { data: existingItems } = await query;
+    const targetItem = existingItems && existingItems.length > 0 ? existingItems[0] : null;
+
+    // --- LOGIC TREE ---
+
+    if (targetItem) {
+        // === MERGE SCENARIO ===
+        // The item exists in destination. We just update quantities.
+        
+        // 1. Add quantity to Target Item
+        const { error: mergeError } = await supabaseClient
+            .from('items')
+            .update({ quantity: targetItem.quantity + moveQty })
+            .eq('id', targetItem.id);
+            
+        if (mergeError) { alert('Error merging items: ' + mergeError.message); return; }
+
+        // 2. Handle Source Item
+        if (moveQty >= totalQty) {
+            // Moved everything? Delete the source.
+            await supabaseClient.from('items').delete().eq('id', itemId);
+        } else {
+            // Moved partial? Decrease the source.
+            await supabaseClient.from('items').update({ quantity: totalQty - moveQty }).eq('id', itemId);
+        }
+
+    } else {
+        // === NORMAL MOVE SCENARIO (No matching item in destination) ===
+        
+        if (moveQty >= totalQty) {
+            // Case 1: Move Everything (Simple Place Update)
+            await supabaseClient
+                .from('items')
+                .update({ place_id: newPlaceId })
+                .eq('id', itemId);
+        } else {
+            // Case 2: Split (Decrease Old, Create New)
+            // Decrease Old
+            await supabaseClient.from('items').update({ quantity: totalQty - moveQty }).eq('id', itemId);
+            
+            // Create New
+            await supabaseClient.from('items').insert({
+                user_id: CURRENT_USER_ID,
+                name: sourceItem.name,
+                category_id: sourceItem.category_id,
+                quantity: moveQty,
+                place_id: newPlaceId
+            });
+        }
+    }
+
+    // Done!
+    logAction('move_item', { item_id: itemId, to_place_id: newPlaceId });
+    document.getElementById('move-item-modal').style.display = 'none';
     await renderItems();
 }
 
@@ -1391,37 +1429,75 @@ async function handleDeleteItem(itemId, itemName) {
   await renderItems();
 }
 
-function openMoveModal(id, name, fromId) {
-  const targetSelect = document.getElementById("move-item-place");
-  const firstDifferentPlace = allPlacesCache.find((p) => p.id !== fromId);
-  if (firstDifferentPlace) targetSelect.value = firstDifferentPlace.id;
-  document.getElementById("move-item-name").innerText = name;
-  document.getElementById("move-item-id").value = id;
-  document.getElementById("move-item-modal").style.display = "block";
+// --- openMoveModal ---
+function openMoveModal(id, currentName, currentPlaceId, currentQuantity) {
+    document.getElementById('move-item-id').value = id;
+    document.getElementById('move-item-name').innerText = currentName;
+    document.getElementById('move-item-total-qty').value = currentQuantity; // Store total
+
+    // 1. Setup Quantity Input
+    const qtyWrapper = document.getElementById('move-qty-wrapper');
+    const qtyInput = document.getElementById('move-item-quantity');
+    const maxLabel = document.getElementById('move-item-max-label');
+    
+    // Set default value to MAX (Move All)
+    qtyInput.value = currentQuantity; 
+    qtyInput.max = currentQuantity;   
+    maxLabel.innerText = `/ x${currentQuantity}`;
+
+    // Smart UI: Only show the split input if we actually have more than 1 item
+    if (currentQuantity > 1) {
+        qtyWrapper.style.display = 'block';
+    } else {
+        qtyWrapper.style.display = 'none';
+    }
+
+    // 2. Populate Place Dropdown (Standard logic)
+    const select = document.getElementById('move-item-select');
+    select.innerHTML = '<option value="null">Unassigned</option>';
+    
+    const sortedPlaces = [...allPlacesCache].sort((a, b) => {
+        if (a.is_luggage === b.is_luggage) return a.name.localeCompare(b.name);
+        return a.is_luggage ? -1 : 1;
+    });
+
+    sortedPlaces.forEach(place => {
+        if (place.id !== currentPlaceId) { 
+            const isLuggage = place.is_luggage ? '🧳 ' : '';
+            select.innerHTML += `<option value="${place.id}">${isLuggage}${place.name}</option>`;
+        }
+    });
+
+    document.getElementById('move-item-modal').style.display = 'block';
 }
 
 function openModifyModal(id, currentName, currentQuantity, currentCategoryId) {
+    // 1. Set Hidden ID
     document.getElementById('modify-item-id').value = id;
-    document.getElementById('modify-item-name-old').innerText = currentName;
-    document.getElementById('modify-item-name-new').value = currentName;
-    document.getElementById('modify-item-quantity').value = currentQuantity || 1; 
-    
-    // Populate the category dropdown
+
+    // 2. Set Inputs (Use .value for inputs!)
+    document.getElementById('modify-item-name').value = currentName;
+    document.getElementById('modify-item-quantity').value = currentQuantity;
+
+    // 3. Populate Categories
     const select = document.getElementById('modify-item-category');
-    select.innerHTML = ''; 
-    allCategoriesCache.forEach(category => {
-        select.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+    select.innerHTML = '';
+    
+    // Sort categories alphabetically
+    const sortedCategories = [...allCategoriesCache].sort((a, b) => a.name.localeCompare(b.name));
+    
+    sortedCategories.forEach(cat => {
+        select.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
     });
 
-    // Pre-select the current category
+    // Set current category
     if (currentCategoryId) {
         select.value = currentCategoryId;
     }
 
+    // 4. Show Modal
     document.getElementById('modify-item-modal').style.display = 'block';
-    document.getElementById('modify-item-name-new').focus();
 }
-
 // --- Bulk Action Handlers ---
 function handleItemSelection(itemId, totalItemsCount) {
     // Update the Data (Add or Remove form array)
@@ -1516,25 +1592,41 @@ function handleSelectAll(e) {
     renderItems();
 }
 
-async function handleBulkMove() {
-  if (selectedItems.length === 0) {
-    alert("Please select items to move.");
-    return;
-  }
-  const select = document.getElementById("bulk-move-place-select");
-  select.innerHTML = "";
-  allPlacesCache.forEach((place) => {
-    select.innerHTML += `<option value="${place.id}">${place.name}</option>`;
-  });
-  document.getElementById(
-    "bulk-move-count"
-  ).innerText = `${selectedItems.length}`;
-  document.getElementById("bulk-move-modal").style.display = "block";
+function handleBulkMove() {
+    if (selectedItems.length === 0) {
+        alert("No items selected.");
+        return;
+    }
+
+    // 1. Get the dropdown
+    const select = document.getElementById('bulk-move-select');
+    
+    if (!select) {
+        console.error("Critical Error: #bulk-move-select dropdown missing in HTML");
+        return;
+    }
+
+    // 2. Populate it safely
+    select.innerHTML = '<option value="null">Unassigned</option>';
+    
+    // Sort places
+    const sortedPlaces = [...allPlacesCache].sort((a, b) => {
+        if (a.is_luggage === b.is_luggage) return a.name.localeCompare(b.name);
+        return a.is_luggage ? -1 : 1;
+    });
+
+    sortedPlaces.forEach(place => {
+        const isLuggage = place.is_luggage ? '🧳 ' : '';
+        select.innerHTML += `<option value="${place.id}">${isLuggage}${place.name}</option>`;
+    });
+
+    // 3. Show Modal
+    document.getElementById('bulk-move-modal').style.display = 'block';
 }
 
 //--- handleSaveBulkMove ---
 async function handleSaveBulkMove(toPlaceId) {
-    // 1. Convert string "null" (from Unassigned) to real null
+    // 1. Handle Destination
     if (toPlaceId === 'null') toPlaceId = null;
 
     if (!toPlaceId && toPlaceId !== null) {
@@ -1542,36 +1634,91 @@ async function handleSaveBulkMove(toPlaceId) {
         return;
     }
 
-    // 2. FILTER THE ITEMS (Crucial Fix)
-    // This strips out the bad "null" ID that is causing your error
+    // 2. Filter Valid Items
     const validItemIds = selectedItems.filter(id => id && id !== 'null' && id !== 'undefined');
-
     if (validItemIds.length === 0) {
         alert("No valid items selected.");
         return;
     }
 
-    console.log(`Bulk moving ${validItemIds.length} items to ${toPlaceId}`);
+    console.log(`Smart Bulk Moving ${validItemIds.length} items to ${toPlaceId}`);
 
-    // 3. Update Database (Use validItemIds!)
-    const { error } = await supabaseClient
+    // --- STEP A: Fetch Data ---
+    
+    // Get full details of the items we are moving (Source)
+    const { data: sourceItems, error: srcError } = await supabaseClient
         .from('items')
-        .update({ place_id: toPlaceId }) 
-        .in('id', validItemIds); // <--- MUST USE validItemIds
+        .select('*')
+        .in('id', validItemIds);
 
-    if (error) {
-        console.error('Error bulk moving items:', error);
-        alert('Error moving items: ' + error.message);
-        return;
+    if (srcError) { alert('Error fetching source items'); return; }
+
+    // Get all items currently in the destination (Destination)
+    // We need this to check for duplicates/merges
+    let destQuery = supabaseClient.from('items').select('*');
+    if (toPlaceId === null) destQuery = destQuery.is('place_id', null);
+    else destQuery = destQuery.eq('place_id', toPlaceId);
+    
+    const { data: destItems, error: destError } = await destQuery;
+
+    if (destError) { alert('Error fetching destination items'); return; }
+
+    // --- STEP B: Process Loop (The Merge Logic) ---
+
+    // We use a simple loop because we need to check logic for every single item.
+    // Ideally this would be a database function (RPC), but this JS loop works fine for <100 items.
+    
+    for (const sourceItem of sourceItems) {
+        
+        // Check if an identical item exists in the destination
+        // (Must match Name AND Category)
+        const twin = destItems.find(i => 
+            i.name.toLowerCase() === sourceItem.name.toLowerCase() && 
+            i.category_id === sourceItem.category_id
+        );
+
+        if (twin) {
+            // === MERGE ===
+            // 1. Update the Twin in DB (Add quantities)
+            const newQty = twin.quantity + sourceItem.quantity;
+            await supabaseClient
+                .from('items')
+                .update({ quantity: newQty })
+                .eq('id', twin.id);
+            
+            // 2. Delete the Source from DB
+            await supabaseClient
+                .from('items')
+                .delete()
+                .eq('id', sourceItem.id);
+
+            // 3. Update our local 'twin' variable in case we merge ANOTHER item into it in this same loop
+            // (e.g. moving 2 different rows of Socks into the same place)
+            twin.quantity = newQty;
+
+        } else {
+            // === MOVE ===
+            // No twin found. Just update the address.
+            await supabaseClient
+                .from('items')
+                .update({ place_id: toPlaceId })
+                .eq('id', sourceItem.id);
+            
+            // Add this moved item to our local 'destItems' array
+            // So if the next item in the loop matches this one, they will merge!
+            destItems.push({ 
+                ...sourceItem, 
+                place_id: toPlaceId 
+            });
+        }
     }
 
-    // 4. Log Action
+    // --- STEP C: Cleanup ---
     logAction('bulk_move_items', {
         to_place_id: toPlaceId,
-        metadata: { item_count: validItemIds.length, item_ids: validItemIds }
+        metadata: { item_count: validItemIds.length }
     });
     
-    // 5. Cleanup
     document.getElementById('bulk-move-modal').style.display = 'none';
     selectedItems = [];
     renderItems();      

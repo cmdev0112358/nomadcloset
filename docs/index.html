@@ -107,82 +107,81 @@
     </main>
 
     <div id="add-place-modal" class="modal">
-      <div class="modal-content">
-        <span class="close-btn">&times;</span>
-        <h3>Create New Place</h3>
-        <input
-          type="text"
-          id="new-place-name"
-          placeholder="Place name (e.g., Home Office)"
-        />
-        <button id="save-place-btn">Save</button>
-      </div>
-    </div>
-    <div id="add-item-modal" class="modal">
-      <div class="modal-content">
-        <span class="close-btn">&times;</span>
-        <h3>Add New Item</h3>
-        <input
-          type="text"
-          id="new-item-name"
-          placeholder="Item name (e.g., Black Hoodie)"
-        />
-        <input type="number" id="new-item-quantity" value="1" min="1" />
-        <div class="form-row">
-          <select id="new-item-category"></select>
-          <button
-            type="button"
-            id="add-category-quick-btn"
-            class="add-btn-small"
-            title="New Category"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              width="20px"
-              height="20px"
-            >
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-            </svg>
-          </button>
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>Add New Place</h3>
+            <input type="text" id="new-place-name" placeholder="Place Name (e.g. Bathroom)">
+            <div class="modal-buttons">
+                <button id="save-place-btn">Save</button>
+            </div>
         </div>
-        <select id="new-item-place"></select>
-        <button id="save-item-btn">Save</button>
-      </div>
     </div>
+
+    <div id="add-item-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>Add New Item</h3>
+            <input type="text" id="new-item-name" placeholder="Item Name (e.g. Toothbrush)">
+            <div class="row">
+                <input type="number" id="new-item-quantity" value="1" min="1" placeholder="Qty">
+                <select id="new-item-place"></select>
+            </div>
+            <select id="new-item-category"></select>
+            <div class="modal-buttons">
+                <button id="save-item-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
     <div id="move-item-modal" class="modal">
-      <div class="modal-content">
-        <span class="close-btn">&times;</span>
-        <h3>Move Item</h3>
-        <p>Move <strong id="move-item-name">...</strong> to:</p>
-        <select id="move-item-place"></select>
-        <button id="save-move-btn">Move</button>
-        <input type="hidden" id="move-item-id" />
-      </div>
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>Move Item</h3>
+            <p>Move <strong id="move-item-name">...</strong> to:</p>
+            
+            <div id="move-qty-wrapper" style="margin-bottom: 15px; text-align: left;">
+                <label style="display:block; font-size:0.9em;">Quantity to move:</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="number" id="move-item-quantity" value="1" min="1" style="width: 80px;">
+                    <span id="move-item-max-label" style="color: #666; font-size: 0.9em;">/ x4</span>
+                </div>
+            </div>
+
+            <select id="move-item-select"></select>
+            
+            <div class="modal-buttons">
+                <button id="confirm-move-btn">Move</button>
+            </div>
+            
+            <input type="hidden" id="move-item-id">
+            <input type="hidden" id="move-item-total-qty">
+        </div>
     </div>
+    
     <div id="modify-item-modal" class="modal">
-      <div class="modal-content">
+        <div class="modal-content">
             <span class="close-btn">&times;</span>
             <h3>Modify Item</h3>
-            <p>Modify <strong id="modify-item-name-old">...</strong>:</p>
-            <input type="text" id="modify-item-name-new" placeholder="New item name">
-            
-            <select id="modify-item-category"></select>
-            
-            <input type="number" id="modify-item-quantity" value="1" min="1">
-            <button id="save-modify-btn">Save Changes</button>
+            <input type="text" id="modify-item-name" placeholder="Item Name">
+            <input type="number" id="modify-item-quantity" placeholder="Quantity">
+            <select id="modify-item-category"></select> 
             <input type="hidden" id="modify-item-id">
+            <div class="modal-buttons">
+                <button id="save-modify-btn">Save Changes</button>
+            </div>
         </div>
     </div>
+
     <div id="bulk-move-modal" class="modal">
-      <div class="modal-content">
-        <span class="close-btn">&times;</span>
-        <h3>Bulk Move Items</h3>
-        <p>Move <strong id="bulk-move-count">...</strong> items to:</p>
-        <select id="bulk-move-place-select"></select>
-        <button id="save-bulk-move-btn">Move Items</button>
-      </div>
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>Bulk Move Items</h3>
+            <p>Select destination:</p>
+            <select id="bulk-move-select"></select> 
+            <div class="modal-buttons">
+                <button id="save-bulk-move-btn">Move Items</button>
+            </div>
+        </div>
     </div>
 
     <script src="config.js" type="module"></script>
