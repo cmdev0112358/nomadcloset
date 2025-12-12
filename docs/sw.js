@@ -1,4 +1,4 @@
-const CACHE_NAME = "nomadcloset-v3"; 
+const CACHE_NAME = "nomadcloset-v1"; 
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
