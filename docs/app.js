@@ -1625,104 +1625,61 @@ function handleBulkMove() {
 }
 
 //--- handleSaveBulkMove ---
+
 async function handleSaveBulkMove(toPlaceId) {
-    // 1. Handle Destination
+    // 1. Validate Destination
     if (toPlaceId === 'null') toPlaceId = null;
 
+    // If ID is undefined or empty string (but not null, which is valid for "Unassigned")
     if (!toPlaceId && toPlaceId !== null) {
-        alert("Could not find a place to move to.");
+        alert("Error: Invalid destination selected.");
         return;
     }
 
-    // 2. Filter Valid Items
+    // 2. Validate Selected Items
+    // Filter out any null or undefined IDs
     const validItemIds = selectedItems.filter(id => id && id !== 'null' && id !== 'undefined');
+    
     if (validItemIds.length === 0) {
-        alert("No valid items selected.");
+        alert("No items selected.");
         return;
     }
 
-    console.log(`Smart Bulk Moving ${validItemIds.length} items to ${toPlaceId}`);
+    console.log(`Safe bulk moving ${validItemIds.length} items to ${toPlaceId}`);
 
-    // --- STEP A: Fetch Data ---
-    
-    // Get full details of the items we are moving (Source)
-    const { data: sourceItems, error: srcError } = await supabaseClient
+    // 3. EXECUTE (Update Only - No Delete, No Merge)
+    // Simply update the place_id for all selected items.
+    const { error } = await supabaseClient
         .from('items')
-        .select('*')
+        .update({ place_id: toPlaceId })
         .in('id', validItemIds);
 
-    if (srcError) { alert('Error fetching source items'); return; }
-
-    // Get all items currently in the destination (Destination)
-    // We need this to check for duplicates/merges
-    let destQuery = supabaseClient.from('items').select('*');
-    if (toPlaceId === null) destQuery = destQuery.is('place_id', null);
-    else destQuery = destQuery.eq('place_id', toPlaceId);
-    
-    const { data: destItems, error: destError } = await destQuery;
-
-    if (destError) { alert('Error fetching destination items'); return; }
-
-    // --- STEP B: Process Loop (The Merge Logic) ---
-
-    // We use a simple loop because we need to check logic for every single item.
-    // Ideally this would be a database function (RPC), but this JS loop works fine for <100 items.
-    
-    for (const sourceItem of sourceItems) {
-        
-        // Check if an identical item exists in the destination
-        // (Must match Name AND Category)
-        const twin = destItems.find(i => 
-            i.name.toLowerCase() === sourceItem.name.toLowerCase() && 
-            i.category_id === sourceItem.category_id
-        );
-
-        if (twin) {
-            // === MERGE ===
-            // 1. Update the Twin in DB (Add quantities)
-            const newQty = twin.quantity + sourceItem.quantity;
-            await supabaseClient
-                .from('items')
-                .update({ quantity: newQty })
-                .eq('id', twin.id);
-            
-            // 2. Delete the Source from DB
-            await supabaseClient
-                .from('items')
-                .delete()
-                .eq('id', sourceItem.id);
-
-            // 3. Update our local 'twin' variable in case we merge ANOTHER item into it in this same loop
-            // (e.g. moving 2 different rows of Socks into the same place)
-            twin.quantity = newQty;
-
-        } else {
-            // === MOVE ===
-            // No twin found. Just update the address.
-            await supabaseClient
-                .from('items')
-                .update({ place_id: toPlaceId })
-                .eq('id', sourceItem.id);
-            
-            // Add this moved item to our local 'destItems' array
-            // So if the next item in the loop matches this one, they will merge!
-            destItems.push({ 
-                ...sourceItem, 
-                place_id: toPlaceId 
-            });
-        }
+    if (error) {
+        alert('Error moving items: ' + error.message);
+        return;
     }
 
-    // --- STEP C: Cleanup ---
-    logAction('bulk_move_items', {
-        to_place_id: toPlaceId,
-        metadata: { item_count: validItemIds.length }
+    // 4. Success & Cleanup
+    // Log the action (optional)
+    logAction('bulk_move', { 
+        to_place_id: toPlaceId, 
+        count: validItemIds.length 
     });
-    
+
+    // Close the modal
     document.getElementById('bulk-move-modal').style.display = 'none';
+    
+    // Reset selection
     selectedItems = [];
-    renderItems();      
+    
+    // Hide the bulk action menu (the 3 dots)
     updateBulkActionUI(0); 
+    
+    // Reload list to see changes
+    await renderItems();
+
+    // Optional success message
+    // alert("Move complete!");
 }
 
 async function handleBulkDelete() {
